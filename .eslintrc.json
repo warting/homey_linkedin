@@ -1,18 +1,35 @@
 {
   "extends": "eslint-config-athom",
   "rules": {
-    "import/no-unresolved": "off",
-    "import/extensions": "off",
-    "node/no-missing-import": "off",
-    "camelcase": "off",
-    "max-classes-per-file": "off",
-    "node/no-unsupported-features/es-syntax": "off"
+    // Limited exceptions that can't be fixed easily due to API requirements
+    "camelcase": ["error", { "properties": "never" }],
+    // Allow 4 classes per file for type definitions
+    "max-classes-per-file": ["error", 4]
   },
   "overrides": [
     {
+      "files": ["**/*.ts"],
+      "rules": {
+        "node/no-unsupported-features/es-syntax": "off",
+        "import/extensions": ["error", "ignorePackages", { "ts": "never" }],
+        "node/no-missing-import": ["error", {
+          "allowModules": ["homey"],
+          "tryExtensions": [".js", ".ts", ".d.ts"]
+        }]
+      },
+      "settings": {
+        "import/resolver": {
+          "node": {
+            "extensions": [".js", ".ts", ".d.ts"]
+          }
+        }
+      }
+    },
+    {
       "files": ["types/**/*.d.ts"],
       "rules": {
-        "@typescript-eslint/no-explicit-any": "off"
+        "@typescript-eslint/no-explicit-any": "off",
+        "camelcase": "off"
       }
     }
   ]
