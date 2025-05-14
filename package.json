@@ -14,5 +14,9 @@
     "eslint-config-athom": "^3.1.5",
     "tslib": "^2.8.1",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "axios": "^1.9.0",
+    "homey-oauth2app": "^3.7.2"
   }
 }
