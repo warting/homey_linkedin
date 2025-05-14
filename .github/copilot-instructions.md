@@ -20,19 +20,19 @@ This is a Homey app that integrates with LinkedIn, allowing users to post conten
 ### Asset Creation
 
 - **ALWAYS** use ImageMagick's `convert` command for creating and processing PNG images
-- Use the following image sizes for Homey app assets:
-  - Small icon: 128x128 px
-  - Large icon: 500x500 px
-  - Extra large icon: 1000x1000 px
+- Use the following image sizes for Homey app assets (Homey's exact requirements):
+  - Small icon: 250x175 px
+  - Large icon: 500x350 px
+  - Extra large icon: 1000x700 px
 - Ensure all images are properly optimized PNG files with transparency
-- Use these commands for resizing from a source SVG:
+- Use these commands for resizing and creating properly sized images:
   ```bash
-  # From SVG to different sized PNGs
-  convert -background none -density 300 -resize 128x128 assets/icon.svg assets/images/small.png
-  convert -background none -density 600 -resize 500x500 assets/icon.svg assets/images/large.png
-  convert -background none -density 1200 -resize 1000x1000 assets/icon.svg assets/images/xlarge.png
+  # Creating properly sized PNGs with centered content
+  convert -background none -gravity center -extent 250x175 source_image.svg assets/images/small.png
+  convert -background none -gravity center -extent 500x350 source_image.svg assets/images/large.png
+  convert -background none -gravity center -extent 1000x700 source_image.svg assets/images/xlarge.png
   ```
-- For driver icons, follow the same pattern but adjust sizes accordingly
+- For driver icons, follow the same pattern but adjust sizes according to Homey requirements
 - Always compress resulting PNGs with a tool like `pngquant` or `optipng`
 
 ### Development Workflow
