@@ -1,3 +1,19 @@
 {
-  "extends": "athom/homey-app"
+  "extends": "eslint-config-athom",
+  "rules": {
+    "import/no-unresolved": "off",
+    "import/extensions": "off",
+    "node/no-missing-import": "off",
+    "camelcase": "off",
+    "max-classes-per-file": "off",
+    "node/no-unsupported-features/es-syntax": "off"
+  },
+  "overrides": [
+    {
+      "files": ["types/**/*.d.ts"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
+    }
+  ]
 }

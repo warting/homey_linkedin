@@ -1,6 +1,5 @@
 import { OAuth2Client, OAuth2Token } from 'homey-oauth2app';
 import { URLSearchParams } from 'url';
-import Homey from 'homey';
 
 /**
  * LinkedIn OAuth2 Client
@@ -106,7 +105,7 @@ export class LinkedInOAuth2Client extends OAuth2Client {
   /**
    * Get LinkedIn user profile with the access token
    */
-  async getUserProfile(): Promise<any> {
+  async getUserProfile(): Promise<Record<string, unknown>> {
     const response = await this.get({
       path: '/me?projection=(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))',
     });

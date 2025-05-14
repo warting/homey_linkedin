@@ -1,6 +1,5 @@
 'use strict';
 
-import Homey from 'homey';
 import { OAuth2App } from 'homey-oauth2app';
 import LinkedInOAuth2Client from './lib/OAuth/LinkedInOAuth2Client';
 
@@ -9,7 +8,7 @@ class LinkedInApp extends OAuth2App {
   /**
    * onInit is called when the app is initialized.
    */
-  async onInit() {
+  async onInit(): Promise<void> {
     await super.onInit();
 
     this.log('LinkedIn App has been initialized');
@@ -30,7 +29,7 @@ class LinkedInApp extends OAuth2App {
   /**
    * Register flow cards for LinkedIn actions
    */
-  async registerFlowCards() {
+  async registerFlowCards(): Promise<void> {
     this.log('Registering flow cards');
 
     // To be implemented: Action cards for posting to LinkedIn
