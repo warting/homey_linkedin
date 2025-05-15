@@ -38,6 +38,9 @@
         "title": {
           "en": "Post link update"
         },
+        "titleFormatted": {
+          "en": "Post link update to LinkedIn [[visibility]]"
+        },
         "hint": {
           "en": "Posts a link update to LinkedIn"
         },
@@ -123,6 +126,9 @@
         "id": "post_text_update",
         "title": {
           "en": "Post text update"
+        },
+        "titleFormatted": {
+          "en": "Post text update to LinkedIn [[visibility]]"
         },
         "hint": {
           "en": "Posts a text update to LinkedIn"
