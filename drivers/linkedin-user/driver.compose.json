@@ -1,0 +1,54 @@
+{
+  "name": {
+    "en": "LinkedIn User"
+  },
+  "class": "other",
+  "capabilities": [
+    "linkedin_connected",
+    "last_post_time"
+  ],
+  "capabilitiesOptions": {
+    "last_post_time": {
+      "title": {
+        "en": "Last Post Time"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/last_post.svg"
+    }
+  },
+  "platforms": [
+    "local",
+    "cloud"
+  ],
+  "connectivity": [
+    "cloud"
+  ],
+  "images": {
+    "small": "{{driverAssetsPath}}/images/small.png",
+    "large": "{{driverAssetsPath}}/images/large.png",
+    "xlarge": "{{driverAssetsPath}}/images/xlarge.png"
+  },
+  "pair": [
+    {
+      "id": "oauth2",
+      "template": "oauth2"
+    },
+    {
+      "id": "list_devices",
+      "template": "list_devices",
+      "options": {
+        "singular": true
+      },
+      "navigation": {
+        "next": "add_devices"
+      }
+    },
+    {
+      "id": "add_devices",
+      "template": "add_devices"
+    }
+  ]
+}
+

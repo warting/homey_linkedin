@@ -1,0 +1,58 @@
+{
+  "id": "post_text_update",
+  "title": {
+    "en": "Post text update"
+  },
+  "titleFormatted": {
+    "en": "Post text update to LinkedIn [[visibility]]"
+  },
+  "hint": {
+    "en": "Posts a text update to LinkedIn"
+  },
+  "args": [
+    {
+      "name": "device",
+      "type": "device",
+      "filter": "driver_id=linkedin-user"
+    },
+    {
+      "name": "text",
+      "type": "text",
+      "title": {
+        "en": "Text"
+      },
+      "placeholder": {
+        "en": "Your post text"
+      }
+    },
+    {
+      "name": "visibility",
+      "type": "dropdown",
+      "title": {
+        "en": "Visibility"
+      },
+      "values": [
+        {
+          "id": "CONNECTIONS",
+          "title": {
+            "en": "Connections only"
+          }
+        },
+        {
+          "id": "PUBLIC",
+          "title": {
+            "en": "Public"
+          }
+        },
+        {
+          "id": "CONTAINER",
+          "title": {
+            "en": "Container (Organization members)"
+          }
+        }
+      ],
+      "default": "CONNECTIONS"
+    }
+  ]
+}
+

@@ -30,5 +30,227 @@
     "name": "Stefan Wärting",
     "email": "stefan@warting.se"
   },
-  "brandColor": "#0077B5"
+  "brandColor": "#0077B5",
+  "flow": {
+    "actions": [
+      {
+        "id": "post_link_update",
+        "title": {
+          "en": "Post link update"
+        },
+        "hint": {
+          "en": "Posts a link update to LinkedIn"
+        },
+        "args": [
+          {
+            "name": "device",
+            "type": "device",
+            "filter": "driver_id=linkedin-user"
+          },
+          {
+            "name": "text",
+            "type": "text",
+            "title": {
+              "en": "Text"
+            },
+            "placeholder": {
+              "en": "Your post text"
+            }
+          },
+          {
+            "name": "linkUrl",
+            "type": "text",
+            "title": {
+              "en": "Link URL"
+            },
+            "placeholder": {
+              "en": "https://example.com"
+            }
+          },
+          {
+            "name": "title",
+            "type": "text",
+            "title": {
+              "en": "Title"
+            },
+            "placeholder": {
+              "en": "Link title (optional)"
+            },
+            "required": false
+          },
+          {
+            "name": "description",
+            "type": "text",
+            "title": {
+              "en": "Description"
+            },
+            "placeholder": {
+              "en": "Link description (optional)"
+            },
+            "required": false
+          },
+          {
+            "name": "visibility",
+            "type": "dropdown",
+            "title": {
+              "en": "Visibility"
+            },
+            "values": [
+              {
+                "id": "CONNECTIONS",
+                "title": {
+                  "en": "Connections only"
+                }
+              },
+              {
+                "id": "PUBLIC",
+                "title": {
+                  "en": "Public"
+                }
+              },
+              {
+                "id": "CONTAINER",
+                "title": {
+                  "en": "Container (Organization members)"
+                }
+              }
+            ],
+            "default": "CONNECTIONS"
+          }
+        ]
+      },
+      {
+        "id": "post_text_update",
+        "title": {
+          "en": "Post text update"
+        },
+        "hint": {
+          "en": "Posts a text update to LinkedIn"
+        },
+        "args": [
+          {
+            "name": "device",
+            "type": "device",
+            "filter": "driver_id=linkedin-user"
+          },
+          {
+            "name": "text",
+            "type": "text",
+            "title": {
+              "en": "Text"
+            },
+            "placeholder": {
+              "en": "Your post text"
+            }
+          },
+          {
+            "name": "visibility",
+            "type": "dropdown",
+            "title": {
+              "en": "Visibility"
+            },
+            "values": [
+              {
+                "id": "CONNECTIONS",
+                "title": {
+                  "en": "Connections only"
+                }
+              },
+              {
+                "id": "PUBLIC",
+                "title": {
+                  "en": "Public"
+                }
+              },
+              {
+                "id": "CONTAINER",
+                "title": {
+                  "en": "Container (Organization members)"
+                }
+              }
+            ],
+            "default": "CONNECTIONS"
+          }
+        ]
+      }
+    ]
+  },
+  "drivers": [
+    {
+      "name": {
+        "en": "LinkedIn User"
+      },
+      "class": "other",
+      "capabilities": [
+        "linkedin_connected",
+        "last_post_time"
+      ],
+      "capabilitiesOptions": {
+        "last_post_time": {
+          "title": {
+            "en": "Last Post Time"
+          },
+          "getable": true,
+          "setable": false,
+          "uiComponent": "sensor",
+          "icon": "/assets/last_post.svg"
+        }
+      },
+      "platforms": [
+        "local",
+        "cloud"
+      ],
+      "connectivity": [
+        "cloud"
+      ],
+      "images": {
+        "small": "/drivers/linkedin-user/assets/images/small.png",
+        "large": "/drivers/linkedin-user/assets/images/large.png",
+        "xlarge": "/drivers/linkedin-user/assets/images/xlarge.png"
+      },
+      "pair": [
+        {
+          "id": "oauth2",
+          "template": "oauth2"
+        },
+        {
+          "id": "list_devices",
+          "template": "list_devices",
+          "options": {
+            "singular": true
+          },
+          "navigation": {
+            "next": "add_devices"
+          }
+        },
+        {
+          "id": "add_devices",
+          "template": "add_devices"
+        }
+      ],
+      "id": "linkedin-user"
+    }
+  ],
+  "capabilities": {
+    "last_post_time": {
+      "type": "string",
+      "title": {
+        "en": "Last Post Time"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/last_post.svg"
+    },
+    "linkedin_connected": {
+      "type": "boolean",
+      "title": {
+        "en": "Connected"
+      },
+      "getable": true,
+      "setable": false,
+      "uiComponent": "sensor",
+      "icon": "/assets/connection.svg"
+    }
+  }
 }

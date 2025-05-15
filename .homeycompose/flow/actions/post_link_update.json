@@ -1,0 +1,90 @@
+{
+  "id": "post_link_update",
+  "title": {
+    "en": "Post link update"
+  },
+  "titleFormatted": {
+    "en": "Post link update to LinkedIn [[visibility]]"
+  },
+  "hint": {
+    "en": "Posts a link update to LinkedIn"
+  },
+  "args": [
+    {
+      "name": "device",
+      "type": "device",
+      "filter": "driver_id=linkedin-user"
+    },
+    {
+      "name": "text",
+      "type": "text",
+      "title": {
+        "en": "Text"
+      },
+      "placeholder": {
+        "en": "Your post text"
+      }
+    },
+    {
+      "name": "linkUrl",
+      "type": "text",
+      "title": {
+        "en": "Link URL"
+      },
+      "placeholder": {
+        "en": "https://example.com"
+      }
+    },
+    {
+      "name": "title",
+      "type": "text",
+      "title": {
+        "en": "Title"
+      },
+      "placeholder": {
+        "en": "Link title (optional)"
+      },
+      "required": false
+    },
+    {
+      "name": "description",
+      "type": "text",
+      "title": {
+        "en": "Description"
+      },
+      "placeholder": {
+        "en": "Link description (optional)"
+      },
+      "required": false
+    },
+    {
+      "name": "visibility",
+      "type": "dropdown",
+      "title": {
+        "en": "Visibility"
+      },
+      "values": [
+        {
+          "id": "CONNECTIONS",
+          "title": {
+            "en": "Connections only"
+          }
+        },
+        {
+          "id": "PUBLIC",
+          "title": {
+            "en": "Public"
+          }
+        },
+        {
+          "id": "CONTAINER",
+          "title": {
+            "en": "Container (Organization members)"
+          }
+        }
+      ],
+      "default": "CONNECTIONS"
+    }
+  ]
+}
+

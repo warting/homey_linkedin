@@ -77,5 +77,12 @@ declare module 'homey-oauth2app' {
   export class OAuth2Driver extends Homey.Driver {
     getOAuth2Client(): OAuth2Client;
     onOAuth2Init(): Promise<void>;
+    setOAuth2Config(config: {
+      client: typeof OAuth2Client;
+      apiUrl?: string;
+      tokenUrl?: string;
+      authorizationUrl?: string;
+      scopes?: string[];
+    }): void;
   }
 }

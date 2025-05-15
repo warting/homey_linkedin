@@ -1,0 +1,11 @@
+{
+  "type": "string",
+  "title": {
+    "en": "Last Post Time"
+  },
+  "getable": true,
+  "setable": false,
+  "uiComponent": "sensor",
+  "icon": "/assets/last_post.svg"
+}
+
