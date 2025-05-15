@@ -4,7 +4,7 @@
     "en": "Post link update"
   },
   "titleFormatted": {
-    "en": "Post link update to LinkedIn [[visibility]]"
+    "en": "Post \"[[text]]\" with URL \"[[linkUrl]]\" titled \"[[title]]\" with description \"[[description]]\" to LinkedIn [[visibility]]"
   },
   "hint": {
     "en": "Posts a link update to LinkedIn"
