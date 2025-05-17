@@ -72,6 +72,19 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
     super(safeOptions);
   }
+  
+  /**
+   * Override getAuthorizationUrl to ensure we're always using the latest redirect URL
+   */
+  async getAuthorizationUrl(scopes?: string[]): Promise<string> {
+    // Update the redirectUrl before generating the authorization URL
+    if (LinkedInOAuth2Client.REDIRECT_URL) {
+      this._redirectUrl = LinkedInOAuth2Client.REDIRECT_URL;
+    }
+    
+    // Call the parent method to generate the URL
+    return super.getAuthorizationUrl(scopes);
+  }
 
   // Methods to set credentials at runtime (to be called from the app)
   static setClientId(clientId: string): void {
@@ -163,28 +176,43 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       
       this.log(`Request body params: grant_type=authorization_code&code=${code.substring(0, 5)}...`);
 
+      this.log(`Sending token request to: ${LinkedInOAuth2Client.TOKEN_URL}`);
+      this.log(`Full request body: ${body.toString()}`);
+      
       const response = await fetch(LinkedInOAuth2Client.TOKEN_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
         },
         body: body.toString(),
       });
-
+      
       this.log(`Token response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.error('Token request failed:', response.status, errorText);
-        throw new Error(`Failed to exchange code for token: ${response.status} ${errorText}`);
+      
+      let responseText: string;
+      try {
+        responseText = await response.text();
+        this.log(`Token response body: ${responseText}`);
+      } catch (err) {
+        this.error('Error reading response body:', err);
+        responseText = '';
       }
-
-      // Log the full response
-      const responseText = await response.text();
-      this.log(`Token response body: ${responseText}`);
-
-      // Parse the response again
-      const tokenResponse = JSON.parse(responseText) as LinkedInTokenResponse;
+      
+      if (!response.ok) {
+        this.error('Token request failed:', response.status, responseText);
+        throw new Error(`Failed to exchange code for token: ${response.status} ${responseText}`);
+      }
+      
+      // Try to parse the response as JSON
+      let tokenResponse: LinkedInTokenResponse;
+      try {
+        tokenResponse = JSON.parse(responseText) as LinkedInTokenResponse;
+        this.log('Successfully parsed token response');
+      } catch (err) {
+        this.error('Error parsing token response as JSON:', err);
+        throw new Error(`Invalid token response format: ${responseText}`);
+      }
       this.log('Successfully parsed token response');
 
       // Check that we have a valid access token
