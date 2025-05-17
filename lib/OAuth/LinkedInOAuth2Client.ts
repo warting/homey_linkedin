@@ -1,5 +1,15 @@
 import { OAuth2Client, OAuth2Token, ApiResponse } from 'homey-oauth2app';
-import Homey from 'homey';
+
+/**
+ * Interface for LinkedIn OAuth token response
+ */
+interface LinkedInTokenResponse {
+  // Using camelCase for TypeScript interface properties
+  accessToken: string;
+  refreshToken?: string;
+  tokenType?: string;
+  expiresIn?: number;
+}
 
 /**
  * LinkedIn OAuth2 Client
@@ -14,9 +24,10 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   // Update scopes to match those from LinkedIn developer page
   static SCOPES = [
-    'openid',     // Use your name and photo
-    'profile',    // Use your name and photo
-    'email'       // Use the primary email address associated with your LinkedIn account
+    'openid', // Use your name and photo
+    'profile', // Use your name and photo
+    'email', // Use the primary email address associated with your LinkedIn account
+    'w_member_social', // Share content on your behalf
   ];
 
   // Temporary properties to hold runtime settings from the app
@@ -35,19 +46,22 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   // Methods to set credentials at runtime (to be called from the app)
   static setClientId(clientId: string): void {
     if (clientId && clientId.trim() !== '') {
-      console.log(`Setting LinkedIn Client ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}`);
+      // Just set the ID silently
       LinkedInOAuth2Client._clientId = clientId;
     } else {
-      console.error('Attempted to set empty or invalid LinkedIn Client ID');
+      // Just set to empty string silently
+      LinkedInOAuth2Client._clientId = '';
     }
   }
 
   static setClientSecret(clientSecret: string): void {
     if (clientSecret && clientSecret.trim() !== '') {
-      console.log(`Setting LinkedIn Client Secret: ${clientSecret.substring(0, 2)}...${clientSecret.substring(clientSecret.length - 2)}`);
+      // Use a safer way to log without static methods
+      // Just set the secret silently
       LinkedInOAuth2Client._clientSecret = clientSecret;
     } else {
-      console.error('Attempted to set empty or invalid LinkedIn Client Secret');
+      // Just set to empty string silently
+      LinkedInOAuth2Client._clientSecret = '';
     }
   }
 
@@ -59,8 +73,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
     // Log authentication status but hide full credentials for security
     if (LinkedInOAuth2Client.CLIENT_ID) {
-      const idPreview = LinkedInOAuth2Client.CLIENT_ID.substring(0, 4) + '...' +
-                        LinkedInOAuth2Client.CLIENT_ID.substring(LinkedInOAuth2Client.CLIENT_ID.length - 4);
+      const idPreview = `${LinkedInOAuth2Client.CLIENT_ID.substring(0, 4)}...${
+        LinkedInOAuth2Client.CLIENT_ID.substring(LinkedInOAuth2Client.CLIENT_ID.length - 4)}`;
       this.log(`Using LinkedIn Client ID: ${idPreview}`);
     } else {
       this.error('LinkedIn Client ID is not set!');
@@ -70,6 +84,55 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       this.log('LinkedIn Client Secret is configured');
     } else {
       this.error('LinkedIn Client Secret is not set!');
+    }
+  }
+
+  /**
+   * Override the getTokenByCode method to handle LinkedIn's token response
+   */
+  async getTokenByCode(code: string): Promise<OAuth2Token> {
+    this.log('Exchanging authorization code for access token...');
+
+    try {
+      // Use URL encoded form data which LinkedIn requires
+      const body = new URLSearchParams();
+      body.append('grant_type', 'authorization_code');
+      body.append('code', code);
+      body.append('client_id', LinkedInOAuth2Client.CLIENT_ID);
+      body.append('client_secret', LinkedInOAuth2Client.CLIENT_SECRET);
+      body.append('redirect_uri', LinkedInOAuth2Client.REDIRECT_URL);
+
+      const response = await fetch(LinkedInOAuth2Client.TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: body.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.error('Token request failed:', response.status, errorText);
+        throw new Error(`Failed to exchange code for token: ${response.status} ${errorText}`);
+      }
+
+      const tokenResponse = await response.json() as LinkedInTokenResponse;
+      this.log('Successfully obtained access token');
+
+      // Check that we have a valid access token
+      if (!tokenResponse.accessToken) {
+        throw new Error('Invalid token response: Missing accessToken');
+      }
+
+      return {
+        access_token: tokenResponse.accessToken,
+        refresh_token: tokenResponse.refreshToken,
+        token_type: tokenResponse.tokenType,
+        expires_in: tokenResponse.expiresIn,
+      };
+    } catch (error) {
+      this.error('Error exchanging code for token:', error);
+      throw error;
     }
   }
 
@@ -116,11 +179,11 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       }
 
       // Extract the email from LinkedIn's response structure
-      if (response.data &&
-          response.data.elements &&
-          response.data.elements.length > 0 &&
-          response.data.elements[0]['handle~'] &&
-          response.data.elements[0]['handle~'].emailAddress) {
+      if (response.data
+          && response.data.elements
+          && response.data.elements.length > 0
+          && response.data.elements[0]['handle~']
+          && response.data.elements[0]['handle~'].emailAddress) {
         return response.data.elements[0]['handle~'].emailAddress;
       }
 
@@ -214,5 +277,15 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   async getUserId(): Promise<string> {
     const profile = await this.getUserProfile();
     return profile.id;
+  }
+
+  /**
+   * Get the current OAuth2 token
+   * @returns The current OAuth2 token
+   */
+  getToken(): OAuth2Token {
+    // Access the token from the OAuth2Client parent class
+    // @ts-expect-error: Accessing protected property from parent class
+    return this._token;
   }
 }
