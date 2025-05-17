@@ -66,19 +66,32 @@ class LinkedInUserDriver extends OAuth2Driver {
       
       // Get the user profile from LinkedIn
       this.log('Fetching LinkedIn profile...');
-      const profile = await oAuth2Client.getUserProfile();
-      this.log('LinkedIn profile fetched:', profile.id);
-
+      let profile;
+      try {
+        profile = await oAuth2Client.getUserProfile();
+        this.log('LinkedIn profile fetched successfully:', profile?.id || 'no id found');
+      } catch (profileError) {
+        this.error('Error fetching LinkedIn profile:', profileError);
+        throw new Error(`Failed to fetch LinkedIn profile: ${profileError instanceof Error ? profileError.message : 'Unknown error'}`);
+      }
+  
+      // Fetch email - but don't fail if we can't get it
       this.log('Fetching LinkedIn email...');
-      const email = await oAuth2Client.getUserEmail();
-      this.log('LinkedIn email fetched:', email);
-
+      let email = 'unknown@email.com';
+      try {
+        email = await oAuth2Client.getUserEmail();
+        this.log('LinkedIn email fetched:', email);
+      } catch (emailError) {
+        this.log('Could not fetch LinkedIn email, using default:', emailError);
+        // Continue with default email
+      }
+  
       // Ensure we have all required data before returning the device
       if (!profile || !profile.id) {
         this.error('LinkedIn profile data is incomplete:', profile);
         throw new Error('LinkedIn profile data is incomplete or invalid');
       }
-
+  
       // Return the LinkedIn user as a device
       const device = {
         name: `${profile.localizedFirstName || 'LinkedIn'} ${profile.localizedLastName || 'User'} ${email ? `(${email})` : ''}`,
@@ -87,7 +100,7 @@ class LinkedInUserDriver extends OAuth2Driver {
         },
         store: {
           profileId: profile.id,
-          email: email || 'unknown@email.com',
+          email: email,
           firstName: profile.localizedFirstName || '',
           lastName: profile.localizedLastName || '',
         },
