@@ -166,6 +166,15 @@ class LinkedInApp extends OAuth2App {
               const verifyToken = client.getToken();
               if (verifyToken && verifyToken.access_token) {
                 this.log('Active client has valid token');
+                
+                // Explicitly save the OAuth2 sessions to ensure token persistence
+                try {
+                  // @ts-expect-error: Accessing protected method from OAuth2App
+                  this.saveOAuth2Sessions();
+                  this.log('Successfully saved OAuth2 sessions after loading token');
+                } catch (saveError) {
+                  this.error('Error saving OAuth2 sessions after loading token:', saveError);
+                }
               } else {
                 this.log('Token verification failed');
               }
@@ -199,10 +208,19 @@ class LinkedInApp extends OAuth2App {
       const token = client.getToken();
       if (token && token.access_token) {
         this.log('New active client has valid token');
+        
+        // Important: Save the OAuth2 sessions to persist the token
+        try {
+          // @ts-expect-error: Accessing protected method from OAuth2App
+          this.saveOAuth2Sessions();
+          this.log('Successfully saved OAuth2 sessions with token');
+        } catch (error) {
+          this.error('Failed to save OAuth2 sessions:', error);
+        }
       } else {
         this.log('Warning: New active client has no valid token');
+      }
     }
-  }
 
   /**
    * Update OAuth credentials from app settings

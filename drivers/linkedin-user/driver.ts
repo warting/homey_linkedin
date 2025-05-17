@@ -124,6 +124,19 @@ class LinkedInUserDriver extends OAuth2Driver {
             const verifyToken = oAuth2Client.getToken();
             if (verifyToken && verifyToken.access_token) {
               this.log('Successfully set token from saved session');
+              
+              // Also save the OAuth2 sessions in the app if possible
+              try {
+                // @ts-expect-error: Accessing protected property
+                const app = this._app;
+                if (app && typeof app.saveOAuth2Sessions === 'function') {
+                  this.log('Saving OAuth2 sessions through app after token set');
+                  app.saveOAuth2Sessions();
+                  this.log('Successfully saved OAuth2 sessions with token');
+                }
+              } catch (saveError) {
+                this.error('Error saving OAuth2 sessions after setting token:', saveError);
+              }
             } else {
               this.error('Failed to set token from saved session');
             }
