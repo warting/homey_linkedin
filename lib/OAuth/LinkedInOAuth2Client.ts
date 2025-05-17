@@ -151,7 +151,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     this.log(`Using TOKEN_URL: ${LinkedInOAuth2Client.TOKEN_URL}`);
     this.log(`Using client ID: ${LinkedInOAuth2Client.CLIENT_ID.substring(0, 5)}...`);
     this.log(`Using redirect URI: ${LinkedInOAuth2Client.REDIRECT_URL}`);
-
+    
     try {
       // Use URL encoded form data which LinkedIn requires
       const body = new URLSearchParams();
@@ -160,8 +160,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       body.append('client_id', LinkedInOAuth2Client.CLIENT_ID);
       body.append('client_secret', LinkedInOAuth2Client.CLIENT_SECRET);
       body.append('redirect_uri', LinkedInOAuth2Client.REDIRECT_URL);
-
-      this.log(`Request body (urlencoded): grant_type=authorization_code&code=${code.substring(0, 5)}...&redirect_uri=${encodeURIComponent(LinkedInOAuth2Client.REDIRECT_URL)}`);
+      
+      this.log(`Request body params: grant_type=authorization_code&code=${code.substring(0, 5)}...`);
 
       const response = await fetch(LinkedInOAuth2Client.TOKEN_URL, {
         method: 'POST',

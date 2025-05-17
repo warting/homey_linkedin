@@ -63,61 +63,27 @@ class LinkedInApp extends OAuth2App {
     try {
       this.log('Initializing OAuth2 callback URL');
       
-      // Register the callback with Homey Cloud API and wait for the URL
+      // Register the callback with Homey Cloud API
       const callbackObj = await this.homey.cloud.createOAuth2Callback(this.homey.manifest.id);
       
-      // Create a Promise that will resolve with the URL from the event
-      const urlPromise = new Promise<string>((resolve, reject) => {
-        // Set a timeout to reject if URL isn't received in 5 seconds
-        const timeout = setTimeout(() => {
-          reject(new Error('Timeout waiting for OAuth2 callback URL'));
-        }, 5000);
-        
-        // Set up handler for the URL event
-        callbackObj.on('url', (url: string) => {
-          clearTimeout(timeout);
-          this.log(`OAuth2 callback URL event received: ${url}`);
-          resolve(url);
-        });
-        
-        // Set up handler for the code event (just for logging)
-        callbackObj.on('code', (code: string) => {
-          this.log(`OAuth2 code received: ${code.substring(0, 5)}...`);
-        });
+      // Standard Homey callback format for OAuth2
+      const callbackUrl = `https://callback.athom.com/oauth2/callback`;
+      this.log(`Using standard Homey callback URL: ${callbackUrl}`);
+      
+      // Store this standard URL for the OAuth2 client to use
+      LinkedInOAuth2Client.REDIRECT_URL = callbackUrl;
+      
+      // Log event handling for debugging
+      callbackObj.on('url', (url: string) => {
+        this.log(`OAuth2 callback URL event received (for reference): ${url}`);
+        // We don't use this dynamic URL as it may contain OAuth parameters
       });
       
-      // Wait for the URL from the event
-      const fullCallbackUrl = await urlPromise;
+      callbackObj.on('code', (code: string) => {
+        this.log(`OAuth2 code received: ${code.substring(0, 5)}...`);
+      });
       
-      // LinkedIn OAuth needs a precisely formatted redirect URI
-      try {
-        // Parse the URL to extract any tokens or parameters
-        const urlObj = new URL(fullCallbackUrl);
-        
-        // Use the format that worked in the authorization URL
-        // https://callback.athom.com/oauth2/?token=XXXXX&url=se.premex.linkedin
-        let tokenValue = '';
-        if (urlObj.searchParams.has('token')) {
-          tokenValue = urlObj.searchParams.get('token') || '';
-        }
-        
-        // Construct the URL in the format Homey is actually using
-        const compatibleUrl = `https://callback.athom.com/oauth2/?token=${tokenValue}&url=${this.homey.manifest.id}`;
-        this.log(`Using compatible callback URL format: ${compatibleUrl}`);
-        
-        // Store the compatible URL in the OAuth2 client
-        LinkedInOAuth2Client.REDIRECT_URL = compatibleUrl;
-        this.log(`OAuth2 callback URL configured successfully`);
-      } catch (urlError) {
-        // If URL parsing fails, log error and try a simpler approach
-        this.error('Error parsing callback URL:', urlError);
-        
-        // Fallback to a simple format
-        const fallbackUrl = `https://callback.athom.com/oauth2/callback/${this.homey.manifest.id}`;
-        LinkedInOAuth2Client.REDIRECT_URL = fallbackUrl;
-        this.log(`Using fallback callback URL: ${fallbackUrl}`);
-      }
-      
+      this.log(`OAuth2 callback URL configured successfully`);
       return;
     } catch (error) {
       this.error('Error initializing OAuth2 callback URL:', error);
