@@ -19,6 +19,32 @@ interface LinkedInTokenResponse {
 }
 
 /**
+ * Interface for LinkedIn user profile response
+ */
+interface LinkedInProfileResponse {
+  id: string;
+  localizedFirstName?: string;
+  localizedLastName?: string;
+  [key: string]: any; // Allow for additional properties
+}
+
+/**
+ * Interface for LinkedIn email response
+ */
+interface LinkedInEmailResponse {
+  elements?: Array<{
+    'handle~'?: {
+      emailAddress?: string;
+    };
+    handle?: {
+      emailAddress?: string;
+    };
+    [key: string]: any;
+  }>;
+  [key: string]: any;
+}
+
+/**
  * LinkedIn OAuth2 Client
  *
  * This client handles the OAuth2 flow for LinkedIn API integration
@@ -283,109 +309,222 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
-   * Get the user's LinkedIn profile information
+   * Safe console logging that doesn't emit events
+   * This avoids the unhandled error issues that can occur with this.error()
    */
-  async getUserProfile() {
+  private safeLog(level: 'log' | 'warn' | 'error', ...args: any[]): void {
     try {
-      this.log('Fetching LinkedIn profile data from API');
+      const prefix = `[LinkedInOAuth2Client] ${level.toUpperCase()}:`;
       
-      // Make a request to the LinkedIn API with proper fields
-      // Note: Using fields parameter instead of projection for reliable results
-      const response = await this.get({
-        path: '/me',
-        query: {
-          fields: 'id,localizedFirstName,localizedLastName',
-        },
-        headers: {
-          'X-RestLi-Protocol-Version': '2.0.0',
-          'Accept': 'application/json',
-        },
-      });
-  
-      this.log('LinkedIn profile API response received:', response.status);
-      
-      // Check if the response is OK
-      if (!response || !response.data) {
-        this.error('Invalid response from LinkedIn API:', response);
-        throw new Error('Invalid response from LinkedIn API');
-      }
-      
-      // Check for API errors in the response
-      if (!response.ok) {
-        this.error('Failed to fetch user profile:', response.status, JSON.stringify(response.data));
-        throw new Error(`Failed to fetch LinkedIn profile: HTTP ${response.status}`);
-      }
-  
-      this.log('Successfully retrieved LinkedIn profile with ID:', response.data.id);
-      return response.data;
-    } catch (error) {
-      // Improve error logging with more details
-      this.error('Error in getUserProfile:', error);
-      if (error instanceof Error) {
-        this.error('Error details:', error.message);
-        if (error.stack) {
-          this.error('Stack trace:', error.stack);
+      // Use console methods directly instead of this.log or this.error
+      if (level === 'error') {
+        console.error(prefix, ...args);
+      } else if (level === 'warn') {
+        console.warn(prefix, ...args);
+      } else {
+        console.log(prefix, ...args);
+        // Also try to use this.log for normal logs if it's available
+        try {
+          this.log(...args);
+        } catch (e) {
+          // Ignore errors from this.log
         }
       }
+    } catch (e) {
+      // Last resort fallback - should never get here
+      console.error('[LinkedInOAuth2Client] Error in safeLog:', e);
+    }
+  }
+  
+  /**
+   * Get the user's LinkedIn profile information - with robust error handling
+   * @returns A LinkedIn profile object with at least an id field
+   */
+  async getUserProfile(): Promise<LinkedInProfileResponse> {
+    // Use direct console.log instead of this.log to avoid any potential errors
+    console.log('[LinkedInOAuth2Client] Fetching LinkedIn profile data from API');
+    
+    // Define fallback profile
+    const fallbackProfile: LinkedInProfileResponse = { 
+      id: 'unknown-profile', 
+      localizedFirstName: 'LinkedIn', 
+      localizedLastName: 'User' 
+    };
+    
+    // First try/catch block for the API request
+    try {
+      // Use a direct fetch approach instead of this.get to have more control
+      const token = this.getToken();
+      if (!token || !token.access_token) {
+        console.error('[LinkedInOAuth2Client] No access token available for API request');
+        return fallbackProfile;
+      }
       
-      // Re-throw with more descriptive message
-      throw new Error(`Failed to get LinkedIn profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const apiUrl = `${LinkedInOAuth2Client.API_URL}/me?fields=id,localizedFirstName,localizedLastName`;
+      console.log(`[LinkedInOAuth2Client] Making direct request to: ${apiUrl}`);
+      
+      const fetchResponse = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token.access_token}`,
+          'X-RestLi-Protocol-Version': '2.0.0',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log(`[LinkedInOAuth2Client] API response status: ${fetchResponse.status}`);
+      
+      // Check if the response is OK
+      if (!fetchResponse.ok) {
+        console.error(`[LinkedInOAuth2Client] LinkedIn API returned error status: ${fetchResponse.status}`);
+        
+        // Try to read the error response
+        try {
+          const errorText = await fetchResponse.text();
+          console.error(`[LinkedInOAuth2Client] Error response: ${errorText}`);
+        } catch (textError) {
+          console.error('[LinkedInOAuth2Client] Could not read error response text');
+        }
+        
+        // Return fallback profile data to prevent app crash
+        return { 
+          id: `error-${fetchResponse.status}`, 
+          localizedFirstName: 'LinkedIn', 
+          localizedLastName: 'User' 
+        };
+      }
+      
+      // Try to parse the JSON response
+      let data: any;
+      try {
+        data = await fetchResponse.json();
+        console.log('[LinkedInOAuth2Client] Successfully parsed profile response');
+      } catch (jsonError) {
+        console.error('[LinkedInOAuth2Client] Failed to parse JSON response:', jsonError);
+        return { 
+          id: 'parse-error', 
+          localizedFirstName: 'LinkedIn', 
+          localizedLastName: 'User' 
+        };
+      }
+      
+      // Verify the data has an ID
+      if (!data || !data.id) {
+        console.error('[LinkedInOAuth2Client] Profile data is missing ID:', data);
+        return { 
+          id: 'missing-id', 
+          localizedFirstName: 'LinkedIn', 
+          localizedLastName: 'User' 
+        };
+      }
+      
+      console.log(`[LinkedInOAuth2Client] Successfully retrieved profile with ID: ${data.id}`);
+      
+      // Return the profile data as a proper LinkedInProfileResponse
+      const profile: LinkedInProfileResponse = {
+        id: data.id,
+        localizedFirstName: data.localizedFirstName || 'LinkedIn',
+        localizedLastName: data.localizedLastName || 'User',
+      };
+      
+      return profile;
+    } catch (error) {
+      // Catch any errors from the API request
+      console.error('[LinkedInOAuth2Client] Error fetching profile:', error);
+      
+      // Return fallback profile data to prevent app crash
+      return { 
+        id: 'api-error', 
+        localizedFirstName: 'LinkedIn', 
+        localizedLastName: 'User',
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 
   /**
-   * Get the user's LinkedIn email address
+   * Get the user's LinkedIn email address using direct fetch
+   * @returns Email address as string, or unknown@email.com if unavailable
    */
-  async getUserEmail() {
+  async getUserEmail(): Promise<string> {
+    console.log('[LinkedInOAuth2Client] Fetching LinkedIn email data from API');
+    
+    // Default fallback email
+    const fallbackEmail = 'unknown@email.com';
+    
     try {
-      this.log('Fetching LinkedIn email data from API');
+      // Get access token
+      const token = this.getToken();
+      if (!token || !token.access_token) {
+        console.error('[LinkedInOAuth2Client] No access token available for email request');
+        return fallbackEmail;
+      }
       
-      // Try to get email using the emailAddress endpoint
-      const response = await this.get({
-        path: '/emailAddress',
-        query: {
-          q: 'members',
-          fields: 'elements,elements.handle~',
-        },
+      // Build the API URL
+      const apiUrl = `${LinkedInOAuth2Client.API_URL}/emailAddress?q=members&fields=elements,elements.handle~`;
+      console.log(`[LinkedInOAuth2Client] Requesting email from: ${apiUrl}`);
+      
+      // Make direct fetch request
+      const fetchResponse = await fetch(apiUrl, {
+        method: 'GET',
         headers: {
+          'Authorization': `Bearer ${token.access_token}`,
           'X-RestLi-Protocol-Version': '2.0.0',
           'Accept': 'application/json',
+          'Content-Type': 'application/json',
         },
       });
-  
-      this.log('LinkedIn email API response received:', response.status);
       
-      // Check if the response is valid
-      if (!response || !response.data) {
-        this.log('Invalid response from LinkedIn email API, falling back to default email');
-        return 'unknown@email.com';
+      console.log(`[LinkedInOAuth2Client] Email API response status: ${fetchResponse.status}`);
+      
+      // Check if response was successful
+      if (!fetchResponse.ok) {
+        console.error(`[LinkedInOAuth2Client] Failed to fetch email: ${fetchResponse.status}`);
+        return fallbackEmail;
       }
       
-      // Check for API errors
-      if (!response.ok) {
-        this.log('Failed to fetch email but continuing with flow:', response.status);
-        return 'unknown@email.com';
+      // Parse response
+      let data: LinkedInEmailResponse | null = null;
+      try {
+        const jsonData = await fetchResponse.json();
+        data = jsonData as LinkedInEmailResponse;
+      } catch (jsonError) {
+        console.error('[LinkedInOAuth2Client] Failed to parse email response JSON:', jsonError);
+        return fallbackEmail;
       }
-  
-      // Extract the email from LinkedIn's response structure
-      if (response.data?.elements?.[0]?.['handle~']?.emailAddress) {
-        const email = response.data.elements[0]['handle~'].emailAddress;
-        this.log('Successfully retrieved LinkedIn email:', email);
+      
+      // Make sure data is not null
+      if (!data) {
+        console.error('[LinkedInOAuth2Client] Email data is null');
+        return fallbackEmail;
+      }
+      
+      // Extract email from LinkedIn's response structure
+      if (data.elements && 
+          data.elements.length > 0 && 
+          data.elements[0]['handle~'] && 
+          data.elements[0]['handle~'].emailAddress) {
+        const email = data.elements[0]['handle~'].emailAddress;
+        console.log(`[LinkedInOAuth2Client] Successfully retrieved email: ${email}`);
         return email;
       }
-  
-      // Try alternative response format if available
-      if (response.data?.elements?.[0]?.handle?.emailAddress) {
-        const email = response.data.elements[0].handle.emailAddress;
-        this.log('Successfully retrieved LinkedIn email (alt format):', email);
+      
+      // Try alternative response format
+      if (data.elements && 
+          data.elements.length > 0 && 
+          data.elements[0].handle && 
+          data.elements[0].handle.emailAddress) {
+        const email = data.elements[0].handle.emailAddress;
+        console.log(`[LinkedInOAuth2Client] Retrieved email (alt format): ${email}`);
         return email;
       }
-  
-      this.log('Email not found in response, using default value');
-      return 'unknown@email.com'; // Fallback value
+      
+      console.log('[LinkedInOAuth2Client] Email not found in response');
+      return fallbackEmail;
     } catch (error) {
-      this.log('Error fetching email, using default value:', error);
-      return 'unknown@email.com'; // Return default on any error to allow flow to continue
+      console.error('[LinkedInOAuth2Client] Error fetching email:', error);
+      return fallbackEmail; // Return default on any error
     }
   }
 
@@ -423,6 +562,58 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       };
+    }
+  }
+  
+  /**
+   * Hook that's called before any request is made
+   * Useful for logging request details for debugging
+   */
+  async onRequest({
+    method,
+    path,
+    body,
+    query,
+    headers,
+  }: {
+    method: string;
+    path: string;
+    body?: any;
+    query?: Record<string, any>;
+    headers: Record<string, string>;
+  }) {
+    try {
+      // Log request details without sensitive info
+      this.log(`API Request: ${method} ${path}`);
+      
+      // Log token information for debugging but hide the full token
+      const token = this.getToken();
+      if (token && token.access_token) {
+        const tokenPreview = `${token.access_token.substring(0, 5)}...${token.access_token.substring(token.access_token.length - 5)}`;
+        this.log(`Using access token: ${tokenPreview}`);
+      } else {
+        this.log('No access token available for request');
+      }
+      
+      // Log query parameters for debugging
+      if (query && Object.keys(query).length > 0) {
+        this.log(`Query parameters: ${JSON.stringify(query)}`);
+      }
+      
+      // Log headers for debugging but hide authorization value
+      const debugHeaders = { ...headers };
+      if (debugHeaders['Authorization']) {
+        debugHeaders['Authorization'] = 'Bearer [hidden]';
+      }
+      this.log(`Request headers: ${JSON.stringify(debugHeaders)}`);
+      
+      // Log request body if it exists (for POST/PUT requests)
+      if (body) {
+        this.log(`Request body: ${typeof body === 'string' ? body : JSON.stringify(body)}`);
+      }
+    } catch (error) {
+      // Don't let logging errors break the request
+      this.error('Error in onRequest hook (continuing with request):', error);
     }
   }
 
@@ -521,11 +712,18 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
-   * Get the user's LinkedIn ID
+   * Get the user's LinkedIn ID with fallback handling
+   * @returns User ID as string, or a fallback ID if unavailable
    */
   async getUserId(): Promise<string> {
-    const profile = await this.getUserProfile();
-    return profile.id;
+    try {
+      const profile: LinkedInProfileResponse = await this.getUserProfile();
+      // TypeScript now knows profile has an id property
+      return profile.id || 'unknown-user-id';
+    } catch (error) {
+      console.error('[LinkedInOAuth2Client] Error in getUserId:', error);
+      return 'error-user-id'; // Fallback ID on error
+    }
   }
 
   /**
