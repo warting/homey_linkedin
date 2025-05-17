@@ -1,5 +1,10 @@
 import Homey from 'homey';
-import { OAuth2Client, OAuth2Token, ApiResponse } from 'homey-oauth2app';
+import { OAuth2Client, OAuth2Token as BaseOAuth2Token, ApiResponse } from 'homey-oauth2app';
+
+// Extend the OAuth2Token interface to include id_token
+interface OAuth2Token extends BaseOAuth2Token {
+  id_token?: string;
+}
 
 /**
  * Interface for LinkedIn OAuth token response
@@ -16,6 +21,23 @@ interface LinkedInTokenResponse {
   token_type?: string;
   // eslint-disable-next-line camelcase
   expires_in?: number;
+  // eslint-disable-next-line camelcase
+  id_token?: string; // OpenID Connect ID token that contains user info
+}
+
+/**
+ * Interface for JWT payload in the id_token
+ */
+interface JwtPayload {
+  email?: string;
+  name?: string;
+  // eslint-disable-next-line camelcase
+  given_name?: string;
+  // eslint-disable-next-line camelcase
+  family_name?: string;
+  picture?: string;
+  sub?: string;
+  [key: string]: any;
 }
 
 /**
@@ -42,6 +64,14 @@ interface LinkedInEmailResponse {
     [key: string]: any;
   }>;
   [key: string]: any;
+}
+
+/**
+ * Base64 decode function that works in Node.js (polyfill for atob)
+ */
+function base64Decode(str: string): string {
+  // In Node.js environment, use Buffer
+  return Buffer.from(str, 'base64').toString('utf-8');
 }
 
 /**
@@ -296,11 +326,27 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
       this.log(`Received access token: ${tokenResponse.access_token.substring(0, 5)}...`);
 
+      // Check if response includes an id_token (OpenID Connect)
+      if ('id_token' in tokenResponse) {
+        this.log(`Received id_token from LinkedIn`);
+        
+        // Return token including id_token
+        return {
+          access_token: tokenResponse.access_token,
+          refresh_token: tokenResponse.refresh_token,
+          token_type: tokenResponse.token_type,
+          expires_in: tokenResponse.expires_in,
+          id_token: tokenResponse.id_token,
+        };
+      }
+      
+      // Standard OAuth2 token without id_token
       return {
         access_token: tokenResponse.access_token,
         refresh_token: tokenResponse.refresh_token,
         token_type: tokenResponse.token_type,
         expires_in: tokenResponse.expires_in,
+        id_token: tokenResponse.id_token, // Include the ID token if available
       };
     } catch (error) {
       this.error('Error exchanging code for token:', error);
@@ -444,22 +490,45 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
-   * Get the user's LinkedIn email address using direct fetch
+   * Get the user's LinkedIn email address, first from id_token if available, then from API
    * @returns Email address as string, or unknown@email.com if unavailable
    */
   async getUserEmail(): Promise<string> {
-    console.log('[LinkedInOAuth2Client] Fetching LinkedIn email data from API');
+    console.log('[LinkedInOAuth2Client] Attempting to get LinkedIn email');
     
     // Default fallback email
     const fallbackEmail = 'unknown@email.com';
     
     try {
-      // Get access token
+      // Get the token from our OAuth2 client
       const token = this.getToken();
-      if (!token || !token.access_token) {
-        console.error('[LinkedInOAuth2Client] No access token available for email request');
+      if (!token) {
+        console.error('[LinkedInOAuth2Client] No token available');
         return fallbackEmail;
       }
+      
+      // Try to get email from id_token if available
+      if (token.id_token) {
+        console.log('[LinkedInOAuth2Client] Found id_token, trying to extract email from JWT');
+        const jwt = this.parseJwtToken(token.id_token);
+        
+        if (jwt && jwt.email) {
+          console.log(`[LinkedInOAuth2Client] Successfully extracted email from JWT: ${jwt.email}`);
+          return jwt.email;
+        } else {
+          console.log('[LinkedInOAuth2Client] No email found in JWT, falling back to API');
+        }
+      } else {
+        console.log('[LinkedInOAuth2Client] No id_token available, using API to get email');
+      }
+      
+      // If we don't have an access token, return the fallback
+      if (!token.access_token) {
+        console.error('[LinkedInOAuth2Client] No access_token available for API request');
+        return fallbackEmail;
+      }
+      
+      console.log('[LinkedInOAuth2Client] Fetching LinkedIn email data from API');
       
       // Build the API URL
       const apiUrl = `${LinkedInOAuth2Client.API_URL}/emailAddress?q=members&fields=elements,elements.handle~`;
@@ -727,6 +796,38 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
+   * Parse a JWT token to extract the payload
+   * @param token JWT token string
+   * @returns Decoded payload or null if invalid
+   */
+  private parseJwtToken(token: string): JwtPayload | null {
+    try {
+      // JWT tokens are three base64 parts separated by dots
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.log('[LinkedInOAuth2Client] Invalid JWT token format');
+        return null;
+      }
+  
+      // Decode the middle part (payload)
+      const payload = parts[1];
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      
+      // Use Buffer for base64 decoding in Node.js
+      const decoded = base64Decode(base64);
+      
+      // Parse the JSON payload
+      const jwt = JSON.parse(decoded);
+      console.log('[LinkedInOAuth2Client] Successfully parsed JWT token');
+      
+      return jwt;
+    } catch (error) {
+      console.error('[LinkedInOAuth2Client] Error parsing JWT token:', error);
+      return null;
+    }
+  }
+  
+  /**
    * Get the current OAuth2 token
    * @returns The current OAuth2 token
    */
@@ -734,5 +835,39 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     // Access the token from the OAuth2Client parent class
     // @ts-expect-error: Accessing protected property from parent class
     return this._token;
+  }
+  
+  /**
+   * Decode a JWT token
+   * @param token JWT token string to decode
+   * @returns Decoded token payload or null if invalid
+   */
+  private decodeJwt(token: string): any | null {
+    try {
+      // Split the token into parts
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.error('[LinkedInOAuth2Client] Invalid JWT token format');
+        return null;
+      }
+      
+      // Decode the payload (middle part)
+      const payload = parts[1];
+      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        Buffer.from(base64, 'base64')
+          .toString()
+          .split('')
+          .map(c => {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          })
+          .join('')
+      );
+      
+      return JSON.parse(jsonPayload);
+    } catch (error) {
+      console.error('[LinkedInOAuth2Client] Failed to decode JWT token:', error);
+      return null;
+    }
   }
 }
