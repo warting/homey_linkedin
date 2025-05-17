@@ -1,3 +1,4 @@
+import Homey from 'homey';
 import { OAuth2Client, OAuth2Token, ApiResponse } from 'homey-oauth2app';
 
 /**
@@ -26,8 +27,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   static API_URL = 'https://api.linkedin.com/v2';
   static TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
   static AUTHORIZATION_URL = 'https://www.linkedin.com/oauth/v2/authorization';
-  static REDIRECT_URL = 'https://homey.app/oauth2/callback';
-
+  
   // Update scopes to match those from LinkedIn developer page
   static SCOPES = [
     'openid', // Use your name and photo
@@ -39,6 +39,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   // Temporary properties to hold runtime settings from the app
   private static _clientId: string = '';
   private static _clientSecret: string = '';
+  private static _redirectUrl: string = '';
 
   // Get credentials from app settings only
   static get CLIENT_ID(): string {
@@ -48,6 +49,16 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   static get CLIENT_SECRET(): string {
     return LinkedInOAuth2Client._clientSecret || ''; // Return empty string instead of undefined
   }
+  
+  // Access the redirect URL through getter/setter
+  static get REDIRECT_URL(): string {
+    return LinkedInOAuth2Client._redirectUrl || '';
+  }
+  
+  // Set the redirect URL 
+  static set REDIRECT_URL(url: string) {
+    LinkedInOAuth2Client._redirectUrl = url;
+  }
 
   // Constructor to override parent with safer initialization
   constructor(options: any) {
@@ -55,7 +66,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     const safeOptions = {
       ...options,
       clientId: LinkedInOAuth2Client.CLIENT_ID || options.clientId || 'placeholder-id',
-      clientSecret: LinkedInOAuth2Client.CLIENT_SECRET || options.clientSecret || 'placeholder-secret'
+      clientSecret: LinkedInOAuth2Client.CLIENT_SECRET || options.clientSecret || 'placeholder-secret',
+      redirectUrl: LinkedInOAuth2Client.REDIRECT_URL || options.redirectUrl
     };
 
     super(safeOptions);
@@ -74,12 +86,25 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   static setClientSecret(clientSecret: string): void {
     if (clientSecret && clientSecret.trim() !== '') {
-      // Use a safer way to log without static methods
       // Just set the secret silently
       LinkedInOAuth2Client._clientSecret = clientSecret;
     } else {
       // Just set to empty string silently
       LinkedInOAuth2Client._clientSecret = '';
+    }
+  }
+  
+  // Set the callback URL using Homey's OAuth2 callback
+  static initRedirectUrl(): void {
+    try {
+      console.log('The redirect URL should be set by the app during initialization');
+      console.log('No default redirect URL will be used');
+      
+      // We'll leave the redirect URL empty
+      // The app will handle setting this URL from the Homey Cloud API
+    } catch (error) {
+      console.error('Failed to initialize redirect URL information:', error);
+      // Don't set any value - the app will handle this
     }
   }
 
@@ -88,6 +113,12 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
    */
   async onInit(): Promise<void> {
     this.log('LinkedIn OAuth2Client initialized');
+
+    // Ensure we have a valid redirect URL
+    if (!LinkedInOAuth2Client.REDIRECT_URL) {
+      this.log('Setting up OAuth2 callback URL');
+      LinkedInOAuth2Client.initRedirectUrl();
+    }
 
     // Log authentication status but hide full credentials for security
     if (LinkedInOAuth2Client.CLIENT_ID) {
@@ -102,6 +133,12 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       this.log('LinkedIn Client Secret is configured');
     } else {
       this.error('LinkedIn Client Secret is not set!');
+    }
+    
+    if (LinkedInOAuth2Client.REDIRECT_URL) {
+      this.log(`Using redirect URL: ${LinkedInOAuth2Client.REDIRECT_URL}`);
+    } else {
+      this.error('OAuth2 redirect URL is not set!');
     }
   }
 
