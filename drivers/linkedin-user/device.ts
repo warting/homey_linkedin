@@ -1,219 +1,122 @@
+import Homey from 'homey';
 import { OAuth2Device } from 'homey-oauth2app';
-import LinkedInClient from '../../lib/LinkedIn/LinkedInClient';
 import LinkedInOAuth2Client from '../../lib/OAuth/LinkedInOAuth2Client';
 
-module.exports = class LinkedInUserDevice extends OAuth2Device {
-  private linkedInClient: LinkedInClient | null = null;
-  private refreshInterval: ReturnType<typeof setInterval> | null = null;
-
+class LinkedInUserDevice extends OAuth2Device {
+  
+  // Declare class properties
+  private lastPostTime: Date | null = null;
+  
   /**
-   * onInit is called when the device is initialized.
+   * onOAuth2Init is called when the device is initialized.
    */
-  async onInit() {
+  async onOAuth2Init() {
     this.log('LinkedIn User Device has been initialized');
-
-    // Initialize the LinkedIn client with the OAuth2 client
-    await this.initLinkedInClient();
-
+    
     // Set initial capability values
     await this.setCapabilityValue('linkedin_connected', true).catch(this.error);
-    if (!this.hasCapability('last_post_time')) {
-      await this.addCapability('last_post_time').catch(this.error);
+    
+    // If we have a last post time in store, use it
+    const storedLastPostTime = this.getStoreValue('lastPostTime');
+    if (storedLastPostTime) {
+      this.lastPostTime = new Date(storedLastPostTime);
+      await this.setCapabilityValue('last_post_time', storedLastPostTime).catch(this.error);
+    } else {
+      // Initialize with current time
+      this.lastPostTime = new Date();
+      await this.setCapabilityValue('last_post_time', this.lastPostTime.toISOString()).catch(this.error);
     }
-
-    // Start polling for connection status
-    this.startPolling();
-
-    // Register capabilities listeners
-    await this.registerCapabilityListeners();
-
-    // Register flow card actions
-    await this.registerFlowCardActions();
+    
+    this.log('LinkedIn User Device has been initialized with capabilities');
   }
 
   /**
-   * Start polling for connection status
+   * onOAuth2Added is called when the device is added.
    */
-  startPolling() {
-    // Check connection status every 5 minutes
-    this.refreshInterval = this.homey.setInterval(async () => {
-      try {
-        if (!this.linkedInClient) {
-          await this.initLinkedInClient();
-        }
-
-        // Attempt to get profile to verify connection
-        await this.linkedInClient?.getProfile();
-        await this.setCapabilityValue('linkedin_connected', true).catch(this.error);
-      } catch (error) {
-        this.error('Connection check failed:', error);
-        await this.setCapabilityValue('linkedin_connected', false).catch(this.error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+  async onOAuth2Added() {
+    this.log('LinkedIn User Device has been added');
   }
 
   /**
-   * Initialize the LinkedIn client
+   * onOAuth2Deleted is called when the device is deleted.
    */
-  async initLinkedInClient() {
-    try {
-      // Get the OAuth2 client and cast it to our specific type
-      const oAuth2Client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
-
-      // Create LinkedIn client with the OAuth2 client
-      this.linkedInClient = new LinkedInClient(oAuth2Client);
-
-      // Initialize the client
-      await this.linkedInClient.init();
-
-      // Set connected to true once initialized successfully
-      await this.setCapabilityValue('linkedin_connected', true).catch(this.error);
-
-      this.log('LinkedIn client initialized successfully');
-    } catch (error) {
-      this.error('Failed to initialize LinkedIn client:', error);
-      await this.setCapabilityValue('linkedin_connected', false).catch(this.error);
-      throw new Error(`Failed to initialize LinkedIn client: ${error}`);
-    }
-  }
-
-  /**
-   * Register capability listeners
-   */
-  async registerCapabilityListeners() {
-    // Nothing to implement for these capabilities as they are read-only
-    this.log('Registering capability listeners');
-  }
-
-  /**
-   * Register flow card actions
-   */
-  async registerFlowCardActions() {
-    // Will be implemented when flow cards are created
-    this.log('Registering flow card actions');
+  async onOAuth2Deleted() {
+    this.log('LinkedIn User Device has been deleted');
+    // Clean up any pending tasks or subscriptions
   }
 
   /**
    * Post a text update to LinkedIn
    */
-  async postTextUpdate(params: { text: string; visibility?: string }) {
-    if (!this.linkedInClient) {
-      await this.initLinkedInClient();
-    }
-
-    if (!this.linkedInClient) {
-      throw new Error('LinkedIn client not available');
-    }
-
+  async postTextUpdate({ text, visibility = 'CONNECTIONS' }: { text: string, visibility?: string }) {
+    this.log('Posting text update to LinkedIn');
+    
     try {
-      const { text, visibility } = params;
-      const result = await this.linkedInClient.postTextUpdate({
-        text,
-        visibility: (visibility as 'PUBLIC' | 'CONNECTIONS' | 'CONTAINER') || 'CONNECTIONS',
-      });
-
-      // Update last post time
-      await this.updateLastPostTime();
-
-      this.log('Text update posted successfully');
-      return result;
+      const client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
+      const result = await client.postMessage(text, visibility);
+      
+      if (result.ok) {
+        this.log('Successfully posted text update to LinkedIn');
+        
+        // Update the last post time
+        this.lastPostTime = new Date();
+        await this.setStoreValue('lastPostTime', this.lastPostTime.toISOString());
+        await this.setCapabilityValue('last_post_time', this.lastPostTime.toISOString());
+        
+        return true;
+      }
+      
+      this.error('Failed to post text update to LinkedIn', result.status, result.data);
+      return false;
     } catch (error) {
-      this.error('Failed to post text update:', error);
-      throw new Error(`Failed to post to LinkedIn: ${error}`);
+      this.error('Error posting text update to LinkedIn:', error);
+      throw error;
     }
   }
 
   /**
-   * Post a link to LinkedIn
+   * Post a link update to LinkedIn
    */
-  async postLinkUpdate(params: {
-    text: string;
-    linkUrl: string;
-    title?: string;
-    description?: string;
-    visibility?: string;
+  async postLinkUpdate({ 
+    text, 
+    linkUrl, 
+    title, 
+    description, 
+    visibility = 'CONNECTIONS' 
+  }: { 
+    text: string, 
+    linkUrl: string, 
+    title: string, 
+    description: string, 
+    visibility?: string 
   }) {
-    if (!this.linkedInClient) {
-      await this.initLinkedInClient();
-    }
-
-    if (!this.linkedInClient) {
-      throw new Error('LinkedIn client not available');
-    }
-
+    this.log('Posting link update to LinkedIn');
+    
     try {
-      const {
-        text, linkUrl, title, description, visibility,
-      } = params;
-      const result = await this.linkedInClient.postLinkUpdate({
-        text,
-        linkUrl,
-        title,
-        description,
-        visibility: (visibility as 'PUBLIC' | 'CONNECTIONS' | 'CONTAINER') || 'CONNECTIONS',
-      });
-
-      // Update last post time
-      await this.updateLastPostTime();
-
-      this.log('Link update posted successfully');
-      return result;
+      // For now, we just use the basic post message implementation
+      // In the future, this should be updated to use the proper LinkedIn API for sharing links
+      const client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
+      const fullText = `${text}\n\n${title}\n${description}\n${linkUrl}`;
+      const result = await client.postMessage(fullText, visibility);
+      
+      if (result.ok) {
+        this.log('Successfully posted link update to LinkedIn');
+        
+        // Update the last post time
+        this.lastPostTime = new Date();
+        await this.setStoreValue('lastPostTime', this.lastPostTime.toISOString());
+        await this.setCapabilityValue('last_post_time', this.lastPostTime.toISOString());
+        
+        return true;
+      }
+      
+      this.error('Failed to post link update to LinkedIn', result.status, result.data);
+      return false;
     } catch (error) {
-      this.error('Failed to post link update:', error);
-      throw new Error(`Failed to post link to LinkedIn: ${error}`);
+      this.error('Error posting link update to LinkedIn:', error);
+      throw error;
     }
   }
+}
 
-  /**
-   * Update the last post time capability
-   */
-  async updateLastPostTime() {
-    const now = new Date().toISOString();
-    await this.setCapabilityValue('last_post_time', now).catch(this.error);
-    this.log(`Updated last post time to ${now}`);
-  }
-
-  /**
-   * Get the user profile information
-   */
-  async getUserProfile() {
-    if (!this.linkedInClient) {
-      await this.initLinkedInClient();
-    }
-
-    if (!this.linkedInClient) {
-      throw new Error('LinkedIn client not available');
-    }
-
-    try {
-      return await this.linkedInClient.getProfile();
-    } catch (error) {
-      this.error('Failed to get user profile:', error);
-      throw new Error(`Failed to get LinkedIn profile: ${error}`);
-    }
-  }
-
-  /**
-   * onOAuth2Destroy is called when the OAuth2 session is revoked
-   */
-  async onOAuth2Destroy() {
-    // Set connected status to false
-    await this.setCapabilityValue('linkedin_connected', false).catch(this.error);
-
-    // Clean up after OAuth2 session is destroyed
-    this.log('OAuth2 session destroyed');
-  }
-
-  /**
-   * onDeleted is called when the device is deleted
-   */
-  async onDeleted() {
-    // Clear the polling interval
-    if (this.refreshInterval) {
-      this.homey.clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
-
-    this.log('LinkedIn User device has been deleted');
-  }
-};
+module.exports = LinkedInUserDevice;

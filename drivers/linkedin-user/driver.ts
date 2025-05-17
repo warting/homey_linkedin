@@ -4,27 +4,13 @@ import LinkedInOAuth2Client from '../../lib/OAuth/LinkedInOAuth2Client';
 
 class LinkedInUserDriver extends OAuth2Driver {
   /**
-   * onInit is called when the driver is initialized.
+   * onOAuth2Init is called when the driver is initialized.
    */
-  async onInit() {
+  async onOAuth2Init() {
     this.log('LinkedIn User Driver has been initialized');
-
-    // Initialize the OAuth2Driver properly first
-    await super.onInit();
 
     // Register flow cards
     await this.registerFlowCards();
-  }
-
-  // Override this method to provide OAuth2 configuration
-  getOAuth2Config() {
-    return {
-      client: LinkedInOAuth2Client,
-      apiUrl: LinkedInOAuth2Client.API_URL,
-      tokenUrl: LinkedInOAuth2Client.TOKEN_URL,
-      authorizationUrl: LinkedInOAuth2Client.AUTHORIZATION_URL,
-      scopes: LinkedInOAuth2Client.SCOPES,
-    };
   }
 
   /**
@@ -57,62 +43,50 @@ class LinkedInUserDriver extends OAuth2Driver {
   }
 
   /**
-   * onPair is called when a user starts pairing a new device
+   * This method is called when a user is pairing devices
+   * It should return an array of devices that will be added
    */
-  async onPair(session: any) {
-    this.log('Starting LinkedIn user pairing');
+  async onPairListDevices() {
+    this.log('Listing LinkedIn devices');
 
     try {
-      await super.onPair(session);
+      // Get the OAuth2 client from the driver
+      const oAuth2Client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
+      
+      // Get the user profile from LinkedIn
+      this.log('Fetching LinkedIn profile...');
+      const profile = await oAuth2Client.getUserProfile();
+      this.log('LinkedIn profile fetched:', profile.id);
 
-      // Handle custom pairing steps if needed
-      session.setHandler('list_devices', async () => {
-        this.log('Listing LinkedIn devices');
+      this.log('Fetching LinkedIn email...');
+      const email = await oAuth2Client.getUserEmail();
+      this.log('LinkedIn email fetched:', email);
 
-        try {
-          // Get the OAuth2 client
-          const client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
-          this.log('OAuth2 client obtained successfully');
+      // Ensure we have all required data before returning the device
+      if (!profile || !profile.id) {
+        this.error('LinkedIn profile data is incomplete:', profile);
+        throw new Error('LinkedIn profile data is incomplete or invalid');
+      }
 
-          // Get the user profile from LinkedIn
-          this.log('Fetching LinkedIn profile...');
-          const profile = await client.getUserProfile();
-          this.log('LinkedIn profile fetched:', profile.id);
+      // Return the LinkedIn user as a device
+      const device = {
+        name: `${profile.localizedFirstName || 'LinkedIn'} ${profile.localizedLastName || 'User'} ${email ? `(${email})` : ''}`,
+        data: {
+          id: profile.id,
+        },
+        store: {
+          profileId: profile.id,
+          email: email || 'unknown@email.com',
+          firstName: profile.localizedFirstName || '',
+          lastName: profile.localizedLastName || '',
+        },
+      };
 
-          this.log('Fetching LinkedIn email...');
-          const email = await client.getUserEmail();
-          this.log('LinkedIn email fetched:', email);
-
-          // Ensure we have all required data before returning the device
-          if (!profile || !profile.id) {
-            this.error('LinkedIn profile data is incomplete:', profile);
-            throw new Error('LinkedIn profile data is incomplete or invalid');
-          }
-
-          // Return the LinkedIn user as a device
-          const device = {
-            name: `${profile.localizedFirstName || 'LinkedIn'} ${profile.localizedLastName || 'User'} ${email ? `(${email})` : ''}`,
-            data: {
-              id: profile.id,
-            },
-            store: {
-              profileId: profile.id,
-              email: email || 'unknown@email.com',
-              firstName: profile.localizedFirstName || '',
-              lastName: profile.localizedLastName || '',
-            },
-          };
-
-          this.log('Device ready to be added:', device.name);
-          return [device];
-        } catch (error: any) {
-          this.error('Error during device listing:', error);
-          throw new Error(`Could not retrieve LinkedIn profile: ${error?.message || 'Unknown error'}`);
-        }
-      });
+      this.log('Device ready to be added:', device.name);
+      return [device];
     } catch (error: any) {
-      this.error('Error in onPair:', error);
-      throw error;
+      this.error('Error during device listing:', error);
+      throw new Error(`Could not retrieve LinkedIn profile: ${error?.message || 'Unknown error'}`);
     }
   }
 }

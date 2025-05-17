@@ -4,19 +4,20 @@ import { OAuth2App } from 'homey-oauth2app';
 import LinkedInOAuth2Client from './lib/OAuth/LinkedInOAuth2Client';
 
 class LinkedInApp extends OAuth2App {
+  // Define OAuth2 client as a static property per documentation
+  static OAUTH2_CLIENT = LinkedInOAuth2Client;
+  static OAUTH2_DEBUG = true;
+  // Configure which drivers should use OAuth2
+  static OAUTH2_DRIVERS = ['linkedin-user'];
 
   /**
    * onInit is called when the app is initialized.
    */
-  async onInit(): Promise<void> {
+  async onOAuth2Init(): Promise<void> {
     this.log('Initializing LinkedIn app...');
 
     try {
-      // First initialize the base OAuth app
-      await super.onInit();
-
-      // Then check settings and set the OAuth client credentials
-      // But don't throw errors if they're missing
+      // Update OAuth credentials from settings
       this.updateOAuthCredentials(false);
 
       // Listen for settings changes
@@ -86,17 +87,6 @@ class LinkedInApp extends OAuth2App {
 
     if (configuredId && configuredId.length > 0 && configuredSecret && configuredSecret.length > 0) {
       this.log('LinkedIn OAuth credentials successfully configured');
-
-      // Re-initialize the OAuth2 configuration with the new credentials
-      this.setOAuth2Config({
-        client: LinkedInOAuth2Client,
-        apiUrl: LinkedInOAuth2Client.API_URL,
-        tokenUrl: LinkedInOAuth2Client.TOKEN_URL,
-        authorizationUrl: LinkedInOAuth2Client.AUTHORIZATION_URL,
-        scopes: LinkedInOAuth2Client.SCOPES,
-      });
-
-      this.log('OAuth2 configuration updated with new credentials');
     } else {
       this.log('LinkedIn app will run with limited functionality until credentials are properly configured');
     }
