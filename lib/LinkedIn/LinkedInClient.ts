@@ -1,3 +1,4 @@
+import { ApiResponse } from 'homey-oauth2app';
 import LinkedInOAuth2Client from '../OAuth/LinkedInOAuth2Client';
 
 /**
@@ -125,9 +126,8 @@ export class LinkedInClient {
     };
 
     try {
-      const response = await this.oAuth2Client.makeRequest({
+      const response = await this.oAuth2Client.post({
         path: '/ugcPosts',
-        method: 'POST',
         body: postData,
       });
 
@@ -137,7 +137,7 @@ export class LinkedInClient {
       }
 
       // Handle error case outside the conditional
-      const errorMessage = `LinkedIn API error: ${response.statusCode} ${JSON.stringify(response.data)}`;
+      const errorMessage = `LinkedIn API error: ${response.status} ${JSON.stringify(response.data)}`;
       throw new Error(errorMessage);
     } catch (error) {
       throw new Error(`Failed to post text update: ${error}`);
@@ -187,9 +187,8 @@ export class LinkedInClient {
     };
 
     try {
-      const response = await this.oAuth2Client.makeRequest({
+      const response = await this.oAuth2Client.post({
         path: '/ugcPosts',
-        method: 'POST',
         body: postData,
       });
 
@@ -199,7 +198,7 @@ export class LinkedInClient {
       }
 
       // Handle error case outside the conditional
-      const errorMessage = `LinkedIn API error: ${response.statusCode} ${JSON.stringify(response.data)}`;
+      const errorMessage = `LinkedIn API error: ${response.status} ${JSON.stringify(response.data)}`;
       throw new Error(errorMessage);
     } catch (error) {
       throw new Error(`Failed to post link update: ${error}`);
@@ -221,9 +220,8 @@ export class LinkedInClient {
 
     try {
       // Step 1: Register the image upload
-      const registerUploadResponse = await this.oAuth2Client.makeRequest({
+      const registerUploadResponse = await this.oAuth2Client.post({
         path: '/assets?action=registerUpload',
-        method: 'POST',
         body: {
           registerUploadRequest: {
             recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
@@ -311,9 +309,8 @@ export class LinkedInClient {
         },
       };
 
-      const postResponse = await this.oAuth2Client.makeRequest({
+      const postResponse = await this.oAuth2Client.post({
         path: '/ugcPosts',
-        method: 'POST',
         body: postData,
       });
 
@@ -322,7 +319,7 @@ export class LinkedInClient {
       }
 
       // Handle error outside the conditional
-      const errorMessage = `LinkedIn API error: ${postResponse.statusCode} ${JSON.stringify(postResponse.data)}`;
+      const errorMessage = `LinkedIn API error: ${postResponse.status} ${JSON.stringify(postResponse.data)}`;
       throw new Error(errorMessage);
     } catch (error) {
       throw new Error(`Failed to post image update: ${error}`);

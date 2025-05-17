@@ -1,4 +1,4 @@
-import { OAuth2Client, ApiResponse } from 'homey-oauth2app';
+import { OAuth2Client, OAuth2Token, ApiResponse } from 'homey-oauth2app';
 import Homey from 'homey';
 
 /**
@@ -97,38 +97,86 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
-   * Helper method for making API requests to LinkedIn
+   * This method is called when a request is made to the API
+   * Can be used to modify the request before it is sent
    */
-  async makeRequest(options: {
-    path: string;
-    method?: string;
-    body?: any;
-    query?: Record<string, string>;
-    headers?: Record<string, string>;
-  }): Promise<ApiResponse> {
-    const {
-      path, method = 'GET', body, query = {}, headers = {},
-    } = options;
+  async onRequestHeaders({ headers }: {
+    headers: Record<string, string>;
+  }): Promise<Record<string, string>> {
+    // Add any custom headers or modify existing ones
+    return {
+      ...headers,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-RestLi-Protocol-Version': '2.0.0',
+    };
+  }
 
-    try {
-      if (method === 'GET') {
-        return await this.get({
-          path,
-          query,
-          headers,
+  /**
+   * This method is called when a request to the API returns an error
+   * Used to handle specific API error cases, like token expiration
+   */
+  async onHandleResult({ result }: { result: ApiResponse }): Promise<ApiResponse> {
+    // Handle any LinkedIn-specific error responses
+    if (!result.ok && result.status === 401) {
+      // Token might be expired or invalid, attempt to refresh
+      this.log('Received 401 response, refreshing token...');
+      try {
+        // Since we can't directly access the token, we'll just
+        // assume the parent class handles storing the current token
+        // and will use it for refreshing
+        await this.emit('refresh_token');
+
+        // After refreshing the token, make a simple profile request
+        // to verify the token is working
+        return this.get({
+          path: '/me',
+          query: {
+            projection: '(id)',
+          },
         });
+      } catch (error) {
+        this.error('Error refreshing token', error);
+        throw error;
       }
-      return await this.post(path, body, headers);
-
-    } catch (err: any) {
-      this.error('API Request failed:', err);
-      return {
-        ok: false,
-        status: 0,
-        statusCode: 0,
-        headers: {},
-        data: { error: err.message || 'Unknown error' },
-      };
     }
+
+    return result;
+  }
+
+  /**
+   * Post a message to LinkedIn
+   * @param message The message text
+   * @param visibility Who can see this post (public, connections, etc.)
+   */
+  async postMessage(message: string, visibility: string = 'CONNECTIONS'): Promise<ApiResponse> {
+    const userId = await this.getUserId();
+
+    return this.post({
+      path: '/ugcPosts',
+      body: {
+        author: `urn:li:person:${userId}`,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: {
+              text: message,
+            },
+            shareMediaCategory: 'NONE',
+          },
+        },
+        visibility: {
+          'com.linkedin.ugc.MemberNetworkVisibility': visibility,
+        },
+      },
+    });
+  }
+
+  /**
+   * Get the user's LinkedIn ID
+   */
+  async getUserId(): Promise<string> {
+    const profile = await this.getUserProfile();
+    return profile.id;
   }
 }
