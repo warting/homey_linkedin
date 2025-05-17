@@ -42,11 +42,23 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   // Get credentials from app settings only
   static get CLIENT_ID(): string {
-    return LinkedInOAuth2Client._clientId;
+    return LinkedInOAuth2Client._clientId || ''; // Return empty string instead of undefined
   }
 
   static get CLIENT_SECRET(): string {
-    return LinkedInOAuth2Client._clientSecret;
+    return LinkedInOAuth2Client._clientSecret || ''; // Return empty string instead of undefined
+  }
+
+  // Constructor to override parent with safer initialization
+  constructor(options: any) {
+    // Ensure options has clientId and clientSecret properties
+    const safeOptions = {
+      ...options,
+      clientId: LinkedInOAuth2Client.CLIENT_ID || options.clientId || 'placeholder-id',
+      clientSecret: LinkedInOAuth2Client.CLIENT_SECRET || options.clientSecret || 'placeholder-secret'
+    };
+
+    super(safeOptions);
   }
 
   // Methods to set credentials at runtime (to be called from the app)

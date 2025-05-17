@@ -1,15 +1,30 @@
+import Homey from 'homey';
 import { OAuth2Driver } from 'homey-oauth2app';
 import LinkedInOAuth2Client from '../../lib/OAuth/LinkedInOAuth2Client';
 
-module.exports = class LinkedInUserDriver extends OAuth2Driver {
+class LinkedInUserDriver extends OAuth2Driver {
   /**
    * onInit is called when the driver is initialized.
    */
   async onInit() {
     this.log('LinkedIn User Driver has been initialized');
 
+    // Initialize the OAuth2Driver properly first
+    await super.onInit();
+
     // Register flow cards
     await this.registerFlowCards();
+  }
+
+  // Override this method to provide OAuth2 configuration
+  getOAuth2Config() {
+    return {
+      client: LinkedInOAuth2Client,
+      apiUrl: LinkedInOAuth2Client.API_URL,
+      tokenUrl: LinkedInOAuth2Client.TOKEN_URL,
+      authorizationUrl: LinkedInOAuth2Client.AUTHORIZATION_URL,
+      scopes: LinkedInOAuth2Client.SCOPES,
+    };
   }
 
   /**
@@ -100,4 +115,6 @@ module.exports = class LinkedInUserDriver extends OAuth2Driver {
       throw error;
     }
   }
-};
+}
+
+module.exports = LinkedInUserDriver;

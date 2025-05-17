@@ -11,39 +11,38 @@ class LinkedInApp extends OAuth2App {
   async onInit(): Promise<void> {
     this.log('Initializing LinkedIn app...');
 
-    // First, check settings and set the OAuth client credentials
-    this.updateOAuthCredentials();
+    try {
+      // First initialize the base OAuth app
+      await super.onInit();
 
-    // Listen for settings changes
-    this.homey.settings.on('set', (key) => {
-      this.log(`Setting changed: ${key}`);
-      if (key === 'client_id' || key === 'client_secret') {
-        this.updateOAuthCredentials();
-      }
-    });
+      // Then check settings and set the OAuth client credentials
+      // But don't throw errors if they're missing
+      this.updateOAuthCredentials(false);
 
-    // Then initialize the OAuth app
-    await super.onInit();
+      // Listen for settings changes
+      this.homey.settings.on('set', (key) => {
+        this.log(`Setting changed: ${key}`);
+        if (key === 'client_id' || key === 'client_secret') {
+          this.updateOAuthCredentials(true);
+        }
+      });
 
-    this.log('LinkedIn App has been initialized');
+      this.log('LinkedIn App has been initialized');
 
-    // Register the OAuth2 client
-    this.setOAuth2Config({
-      client: LinkedInOAuth2Client,
-      apiUrl: LinkedInOAuth2Client.API_URL,
-      tokenUrl: LinkedInOAuth2Client.TOKEN_URL,
-      authorizationUrl: LinkedInOAuth2Client.AUTHORIZATION_URL,
-      scopes: LinkedInOAuth2Client.SCOPES,
-    });
+      // Register flow cards
+      await this.registerFlowCards();
 
-    // Register flow cards (will be implemented later)
-    await this.registerFlowCards();
+    } catch (error) {
+      this.error('Error during app initialization:', error);
+      // Log error but don't crash the app
+      this.log('App will continue running with limited functionality');
+    }
   }
 
   /**
    * Update OAuth credentials from app settings
    */
-  updateOAuthCredentials(): void {
+  updateOAuthCredentials(throwErrors: boolean = true): void {
     this.log('Updating OAuth credentials from settings...');
 
     const clientId = this.homey.settings.get('client_id');
@@ -51,33 +50,56 @@ class LinkedInApp extends OAuth2App {
 
     if (!clientId) {
       this.error('LinkedIn Client ID not found in app settings!');
-      throw new Error('LinkedIn Client ID is required but not configured in app settings. Please add your LinkedIn Client ID in the app settings.');
+      if (throwErrors) {
+        throw new Error('LinkedIn Client ID is required for full functionality. Please add your LinkedIn Client ID in the app settings.');
+      } else {
+        this.log('WARNING: LinkedIn Client ID is required for full functionality. Please add your LinkedIn Client ID in the app settings.');
+      }
+    } else {
+      this.log('LinkedIn Client ID found in settings');
+      LinkedInOAuth2Client.setClientId(clientId);
     }
 
     if (!clientSecret) {
       this.error('LinkedIn Client Secret not found in app settings!');
-      throw new Error('LinkedIn Client Secret is required but not configured in app settings. Please add your LinkedIn Client Secret in the app settings.');
+      if (throwErrors) {
+        throw new Error('LinkedIn Client Secret is required for full functionality. Please add your LinkedIn Client Secret in the app settings.');
+      } else {
+        this.log('WARNING: LinkedIn Client Secret is required for full functionality. Please add your LinkedIn Client Secret in the app settings.');
+      }
+    } else {
+      this.log('LinkedIn Client Secret found in settings');
+      LinkedInOAuth2Client.setClientSecret(clientSecret);
     }
 
-    this.log('LinkedIn OAuth credentials found in settings');
-    LinkedInOAuth2Client.setClientId(clientId);
-    LinkedInOAuth2Client.setClientSecret(clientSecret);
-
-    // Verify credentials were set properly
+    // Only log status, don't throw errors if credentials are missing
     const configuredId = LinkedInOAuth2Client.CLIENT_ID;
     const configuredSecret = LinkedInOAuth2Client.CLIENT_SECRET;
 
     if (!configuredId || configuredId.length === 0) {
-      this.error('Failed to set LinkedIn Client ID!');
-      throw new Error('Failed to set LinkedIn Client ID. Please check your app settings.');
+      this.error('LinkedIn Client ID not configured!');
     }
 
     if (!configuredSecret || configuredSecret.length === 0) {
-      this.error('Failed to set LinkedIn Client Secret!');
-      throw new Error('Failed to set LinkedIn Client Secret. Please check your app settings.');
+      this.error('LinkedIn Client Secret not configured!');
     }
 
-    this.log('LinkedIn OAuth credentials successfully configured');
+    if (configuredId && configuredId.length > 0 && configuredSecret && configuredSecret.length > 0) {
+      this.log('LinkedIn OAuth credentials successfully configured');
+
+      // Re-initialize the OAuth2 configuration with the new credentials
+      this.setOAuth2Config({
+        client: LinkedInOAuth2Client,
+        apiUrl: LinkedInOAuth2Client.API_URL,
+        tokenUrl: LinkedInOAuth2Client.TOKEN_URL,
+        authorizationUrl: LinkedInOAuth2Client.AUTHORIZATION_URL,
+        scopes: LinkedInOAuth2Client.SCOPES,
+      });
+
+      this.log('OAuth2 configuration updated with new credentials');
+    } else {
+      this.log('LinkedIn app will run with limited functionality until credentials are properly configured');
+    }
   }
 
   /**
