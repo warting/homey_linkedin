@@ -216,15 +216,12 @@
       },
       "pair": [
         {
-          "id": "oauth2",
-          "template": "oauth2"
+          "id": "login_oauth2",
+          "template": "login_oauth2"
         },
         {
           "id": "list_devices",
           "template": "list_devices",
-          "options": {
-            "singular": true
-          },
           "navigation": {
             "next": "add_devices"
           }

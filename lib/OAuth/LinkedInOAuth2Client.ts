@@ -11,45 +11,44 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   static TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
   static AUTHORIZATION_URL = 'https://www.linkedin.com/oauth/v2/authorization';
   static REDIRECT_URL = 'https://homey.app/oauth2/callback';
+
+  // Update scopes to match those from LinkedIn developer page
   static SCOPES = [
-    'r_liteprofile',
-    'r_emailaddress',
-    'w_member_social',
-    'w_organization_social',
+    'openid',     // Use your name and photo
+    'profile',    // Use your name and photo
+    'email'       // Use the primary email address associated with your LinkedIn account
   ];
-
-  // Get credentials from app settings
-  static get CLIENT_ID(): string {
-    try {
-      // Only use the value set from app settings
-      return LinkedInOAuth2Client._clientId || '';
-    } catch (error) {
-      console.error('Error getting CLIENT_ID:', error);
-      return '';
-    }
-  }
-
-  static get CLIENT_SECRET(): string {
-    try {
-      // Only use the value set from app settings
-      return LinkedInOAuth2Client._clientSecret || '';
-    } catch (error) {
-      console.error('Error getting CLIENT_SECRET:', error);
-      return '';
-    }
-  }
 
   // Temporary properties to hold runtime settings from the app
   private static _clientId: string = '';
   private static _clientSecret: string = '';
 
+  // Get credentials from app settings only
+  static get CLIENT_ID(): string {
+    return LinkedInOAuth2Client._clientId;
+  }
+
+  static get CLIENT_SECRET(): string {
+    return LinkedInOAuth2Client._clientSecret;
+  }
+
   // Methods to set credentials at runtime (to be called from the app)
   static setClientId(clientId: string): void {
-    LinkedInOAuth2Client._clientId = clientId;
+    if (clientId && clientId.trim() !== '') {
+      console.log(`Setting LinkedIn Client ID: ${clientId.substring(0, 4)}...${clientId.substring(clientId.length - 4)}`);
+      LinkedInOAuth2Client._clientId = clientId;
+    } else {
+      console.error('Attempted to set empty or invalid LinkedIn Client ID');
+    }
   }
 
   static setClientSecret(clientSecret: string): void {
-    LinkedInOAuth2Client._clientSecret = clientSecret;
+    if (clientSecret && clientSecret.trim() !== '') {
+      console.log(`Setting LinkedIn Client Secret: ${clientSecret.substring(0, 2)}...${clientSecret.substring(clientSecret.length - 2)}`);
+      LinkedInOAuth2Client._clientSecret = clientSecret;
+    } else {
+      console.error('Attempted to set empty or invalid LinkedIn Client Secret');
+    }
   }
 
   /**
@@ -57,43 +56,80 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
    */
   async onInit(): Promise<void> {
     this.log('LinkedIn OAuth2Client initialized');
+
+    // Log authentication status but hide full credentials for security
+    if (LinkedInOAuth2Client.CLIENT_ID) {
+      const idPreview = LinkedInOAuth2Client.CLIENT_ID.substring(0, 4) + '...' +
+                        LinkedInOAuth2Client.CLIENT_ID.substring(LinkedInOAuth2Client.CLIENT_ID.length - 4);
+      this.log(`Using LinkedIn Client ID: ${idPreview}`);
+    } else {
+      this.error('LinkedIn Client ID is not set!');
+    }
+
+    if (LinkedInOAuth2Client.CLIENT_SECRET) {
+      this.log('LinkedIn Client Secret is configured');
+    } else {
+      this.error('LinkedIn Client Secret is not set!');
+    }
   }
 
   /**
    * Get the user's LinkedIn profile information
    */
   async getUserProfile() {
-    const response = await this.get({
-      path: '/me',
-      query: {
-        projection: '(id,firstName,lastName,profilePicture(displayImage~:playableStreams))',
-      },
-    });
+    try {
+      const response = await this.get({
+        path: '/me',
+        query: {
+          projection: '(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))',
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch user profile');
+      if (!response.ok) {
+        this.error('Failed to fetch user profile:', response.status, response.data);
+        throw new Error(`Failed to fetch LinkedIn profile: ${response.status} ${JSON.stringify(response.data)}`);
+      }
+
+      return response.data;
+    } catch (error) {
+      this.error('Error in getUserProfile:', error);
+      throw error;
     }
-
-    return response.data;
   }
 
   /**
    * Get the user's LinkedIn email address
    */
   async getUserEmail() {
-    const response = await this.get({
-      path: '/emailAddress',
-      query: {
-        q: 'members',
-        projection: '(elements*(handle~))',
-      },
-    });
+    try {
+      const response = await this.get({
+        path: '/emailAddress',
+        query: {
+          q: 'members',
+          projection: '(elements*(handle~))',
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch user email');
+      if (!response.ok) {
+        this.error('Failed to fetch user email:', response.status, response.data);
+        throw new Error(`Failed to fetch LinkedIn email: ${response.status} ${JSON.stringify(response.data)}`);
+      }
+
+      // Extract the email from LinkedIn's response structure
+      if (response.data &&
+          response.data.elements &&
+          response.data.elements.length > 0 &&
+          response.data.elements[0]['handle~'] &&
+          response.data.elements[0]['handle~'].emailAddress) {
+        return response.data.elements[0]['handle~'].emailAddress;
+      }
+
+      this.error('Email not found in response:', response.data);
+      return 'unknown@email.com'; // Fallback value
+    } catch (error) {
+      this.error('Error in getUserEmail:', error);
+      throw error;
     }
-
-    return response.data;
   }
 
   /**

@@ -9,11 +9,14 @@ class LinkedInApp extends OAuth2App {
    * onInit is called when the app is initialized.
    */
   async onInit(): Promise<void> {
+    this.log('Initializing LinkedIn app...');
+
     // First, check settings and set the OAuth client credentials
     this.updateOAuthCredentials();
 
     // Listen for settings changes
     this.homey.settings.on('set', (key) => {
+      this.log(`Setting changed: ${key}`);
       if (key === 'client_id' || key === 'client_secret') {
         this.updateOAuthCredentials();
       }
@@ -41,16 +44,40 @@ class LinkedInApp extends OAuth2App {
    * Update OAuth credentials from app settings
    */
   updateOAuthCredentials(): void {
+    this.log('Updating OAuth credentials from settings...');
+
     const clientId = this.homey.settings.get('client_id');
     const clientSecret = this.homey.settings.get('client_secret');
 
-    if (clientId) {
-      LinkedInOAuth2Client.setClientId(clientId);
+    if (!clientId) {
+      this.error('LinkedIn Client ID not found in app settings!');
+      throw new Error('LinkedIn Client ID is required but not configured in app settings. Please add your LinkedIn Client ID in the app settings.');
     }
 
-    if (clientSecret) {
-      LinkedInOAuth2Client.setClientSecret(clientSecret);
+    if (!clientSecret) {
+      this.error('LinkedIn Client Secret not found in app settings!');
+      throw new Error('LinkedIn Client Secret is required but not configured in app settings. Please add your LinkedIn Client Secret in the app settings.');
     }
+
+    this.log('LinkedIn OAuth credentials found in settings');
+    LinkedInOAuth2Client.setClientId(clientId);
+    LinkedInOAuth2Client.setClientSecret(clientSecret);
+
+    // Verify credentials were set properly
+    const configuredId = LinkedInOAuth2Client.CLIENT_ID;
+    const configuredSecret = LinkedInOAuth2Client.CLIENT_SECRET;
+
+    if (!configuredId || configuredId.length === 0) {
+      this.error('Failed to set LinkedIn Client ID!');
+      throw new Error('Failed to set LinkedIn Client ID. Please check your app settings.');
+    }
+
+    if (!configuredSecret || configuredSecret.length === 0) {
+      this.error('Failed to set LinkedIn Client Secret!');
+      throw new Error('Failed to set LinkedIn Client Secret. Please check your app settings.');
+    }
+
+    this.log('LinkedIn OAuth credentials successfully configured');
   }
 
   /**
