@@ -2,13 +2,19 @@ import { OAuth2Client, OAuth2Token, ApiResponse } from 'homey-oauth2app';
 
 /**
  * Interface for LinkedIn OAuth token response
+ * Using snake_case to match LinkedIn's actual API response format
+ * @eslint-disable camelcase
  */
 interface LinkedInTokenResponse {
-  // Using camelCase for TypeScript interface properties
-  accessToken: string;
-  refreshToken?: string;
-  tokenType?: string;
-  expiresIn?: number;
+  // LinkedIn API returns snake_case properties
+  // eslint-disable-next-line camelcase
+  access_token: string;
+  // eslint-disable-next-line camelcase
+  refresh_token?: string;
+  // eslint-disable-next-line camelcase
+  token_type?: string;
+  // eslint-disable-next-line camelcase
+  expires_in?: number;
 }
 
 /**
@@ -92,6 +98,10 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
    */
   async getTokenByCode(code: string): Promise<OAuth2Token> {
     this.log('Exchanging authorization code for access token...');
+    this.log(`Authorization code: ${code.substring(0, 5)}...`);
+    this.log(`Using TOKEN_URL: ${LinkedInOAuth2Client.TOKEN_URL}`);
+    this.log(`Using client ID: ${LinkedInOAuth2Client.CLIENT_ID.substring(0, 5)}...`);
+    this.log(`Using redirect URI: ${LinkedInOAuth2Client.REDIRECT_URL}`);
 
     try {
       // Use URL encoded form data which LinkedIn requires
@@ -102,6 +112,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       body.append('client_secret', LinkedInOAuth2Client.CLIENT_SECRET);
       body.append('redirect_uri', LinkedInOAuth2Client.REDIRECT_URL);
 
+      this.log(`Request body (urlencoded): grant_type=authorization_code&code=${code.substring(0, 5)}...&redirect_uri=${encodeURIComponent(LinkedInOAuth2Client.REDIRECT_URL)}`);
+
       const response = await fetch(LinkedInOAuth2Client.TOKEN_URL, {
         method: 'POST',
         headers: {
@@ -110,25 +122,35 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         body: body.toString(),
       });
 
+      this.log(`Token response status: ${response.status}`);
+
       if (!response.ok) {
         const errorText = await response.text();
         this.error('Token request failed:', response.status, errorText);
         throw new Error(`Failed to exchange code for token: ${response.status} ${errorText}`);
       }
 
-      const tokenResponse = await response.json() as LinkedInTokenResponse;
-      this.log('Successfully obtained access token');
+      // Log the full response
+      const responseText = await response.text();
+      this.log(`Token response body: ${responseText}`);
+
+      // Parse the response again
+      const tokenResponse = JSON.parse(responseText) as LinkedInTokenResponse;
+      this.log('Successfully parsed token response');
 
       // Check that we have a valid access token
-      if (!tokenResponse.accessToken) {
-        throw new Error('Invalid token response: Missing accessToken');
+      if (!tokenResponse.access_token) {
+        this.error('Missing access token in response:', tokenResponse);
+        throw new Error('Invalid token response: Missing access_token');
       }
 
+      this.log(`Received access token: ${tokenResponse.access_token.substring(0, 5)}...`);
+
       return {
-        access_token: tokenResponse.accessToken,
-        refresh_token: tokenResponse.refreshToken,
-        token_type: tokenResponse.tokenType,
-        expires_in: tokenResponse.expiresIn,
+        access_token: tokenResponse.access_token,
+        refresh_token: tokenResponse.refresh_token,
+        token_type: tokenResponse.token_type,
+        expires_in: tokenResponse.expires_in,
       };
     } catch (error) {
       this.error('Error exchanging code for token:', error);
