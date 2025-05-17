@@ -2,7 +2,6 @@ import { OAuth2Driver } from 'homey-oauth2app';
 import LinkedInOAuth2Client from '../../lib/OAuth/LinkedInOAuth2Client';
 
 module.exports = class LinkedInUserDriver extends OAuth2Driver {
-
   /**
    * onInit is called when the driver is initialized.
    */
@@ -11,11 +10,6 @@ module.exports = class LinkedInUserDriver extends OAuth2Driver {
 
     // Register flow cards
     await this.registerFlowCards();
-
-    // Use the LinkedIn OAuth2 Client
-    this.setOAuth2Config({
-      client: LinkedInOAuth2Client,
-    });
   }
 
   /**
@@ -26,14 +20,14 @@ module.exports = class LinkedInUserDriver extends OAuth2Driver {
 
     // Register post_text_update flow card
     const postTextUpdateCard = this.homey.flow.getActionCard('post_text_update');
-    postTextUpdateCard.registerRunListener(async (args, state) => {
+    postTextUpdateCard.registerRunListener(async (args) => {
       const { device, text, visibility } = args;
       return device.postTextUpdate({ text, visibility });
     });
 
     // Register post_link_update flow card
     const postLinkUpdateCard = this.homey.flow.getActionCard('post_link_update');
-    postLinkUpdateCard.registerRunListener(async (args, state) => {
+    postLinkUpdateCard.registerRunListener(async (args) => {
       const {
         device, text, linkUrl, title, description, visibility,
       } = args;

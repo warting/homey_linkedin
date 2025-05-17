@@ -21,8 +21,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   // Get credentials from app settings
   static get CLIENT_ID(): string {
     try {
-      // In Homey SDK v3, settings are accessed via homey.settings
-      return Homey.env.CLIENT_ID || LinkedInOAuth2Client._clientId || '';
+      // Only use the value set from app settings
+      return LinkedInOAuth2Client._clientId || '';
     } catch (error) {
       console.error('Error getting CLIENT_ID:', error);
       return '';
@@ -31,8 +31,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   static get CLIENT_SECRET(): string {
     try {
-      // In Homey SDK v3, settings are accessed via homey.settings
-      return Homey.env.CLIENT_SECRET || LinkedInOAuth2Client._clientSecret || '';
+      // Only use the value set from app settings
+      return LinkedInOAuth2Client._clientSecret || '';
     } catch (error) {
       console.error('Error getting CLIENT_SECRET:', error);
       return '';
