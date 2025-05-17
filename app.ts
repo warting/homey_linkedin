@@ -79,8 +79,25 @@ class LinkedInApp extends OAuth2App {
         // We don't use this dynamic URL as it may contain OAuth parameters
       });
       
-      callbackObj.on('code', (code: string) => {
-        this.log(`OAuth2 code received: ${code.substring(0, 5)}...`);
+      callbackObj.on('code', (code: any) => {
+        // Ensure code is a string and safely log it
+        let codeStr: string;
+        if (typeof code === 'string') {
+          codeStr = code;
+        } else if (code && typeof code === 'object') {
+          if (code.code && typeof code.code === 'string') {
+            codeStr = code.code;
+            this.log('Extracted code from object property');
+          } else {
+            this.log('Code is an object, storing the whole object for debugging:', JSON.stringify(code));
+            codeStr = 'object';
+          }
+        } else {
+          codeStr = String(code || '');
+        }
+        
+        const codePreview = codeStr && codeStr.length > 5 ? `${codeStr.substring(0, 5)}...` : codeStr;
+        this.log(`OAuth2 code received: ${codePreview}`);
       });
       
       this.log(`OAuth2 callback URL configured successfully`);

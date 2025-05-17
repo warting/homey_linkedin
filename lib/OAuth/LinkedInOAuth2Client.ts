@@ -73,18 +73,8 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     super(safeOptions);
   }
   
-  /**
-   * Override getAuthorizationUrl to ensure we're always using the latest redirect URL
-   */
-  async getAuthorizationUrl(scopes?: string[]): Promise<string> {
-    // Update the redirectUrl before generating the authorization URL
-    if (LinkedInOAuth2Client.REDIRECT_URL) {
-      this._redirectUrl = LinkedInOAuth2Client.REDIRECT_URL;
-    }
-    
-    // Call the parent method to generate the URL
-    return super.getAuthorizationUrl(scopes);
-  }
+  // We don't need to override getAuthorizationUrl
+  // The parent OAuth2Client class will use the redirectUrl provided in the constructor
 
   // Methods to set credentials at runtime (to be called from the app)
   static setClientId(clientId: string): void {
@@ -158,23 +148,80 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   /**
    * Override the getTokenByCode method to handle LinkedIn's token response
    */
-  async getTokenByCode(code: string): Promise<OAuth2Token> {
+  async getTokenByCode(code: string | any): Promise<OAuth2Token> {
     this.log('Exchanging authorization code for access token...');
-    this.log(`Authorization code: ${code.substring(0, 5)}...`);
+    
+    // Extract the actual code value from the object or string
+    let codeStr: string = '';
+    if (typeof code === 'string') {
+      codeStr = code;
+    } else if (code && typeof code === 'object') {
+      // The OAuth2 callback might pass an object with the code as a property
+      if (code.code && typeof code.code === 'string') {
+        codeStr = code.code;
+      } else if (code.url && typeof code.url === 'string') {
+        // Try to extract code from URL parameter
+        try {
+          const url = new URL(code.url);
+          const params = new URLSearchParams(url.search);
+          const codeParam = params.get('code');
+          if (codeParam) {
+            codeStr = codeParam;
+          } else {
+            this.error('Could not find code parameter in URL:', code.url);
+            codeStr = String(code);
+          }
+        } catch (error) {
+          this.error('Failed to parse URL:', error);
+          codeStr = String(code);
+        }
+      } else {
+        // Fallback: stringify the first field we can find
+        let foundStringField = false;
+        for (const key in code) {
+          if (typeof code[key] === 'string') {
+            codeStr = code[key];
+            this.log(`Using field '${key}' as code value`);
+            foundStringField = true;
+            break;
+          }
+        }
+        if (!foundStringField) {
+          codeStr = JSON.stringify(code);
+        }
+      }
+    } else {
+      codeStr = String(code || '');
+    }
+    
+    // Make sure we have a valid code string
+    if (!codeStr || codeStr === 'undefined' || codeStr === '[object Object]') {
+      this.error('Invalid authorization code:', code);
+      throw new Error('Invalid authorization code. Please try again.');
+    }
+    
+    // Log the code preview (first few characters) for debugging
+    const codePreview = codeStr.length > 5 ? `${codeStr.substring(0, 5)}...` : codeStr;
+    this.log(`Authorization code: ${codePreview}`);
     this.log(`Using TOKEN_URL: ${LinkedInOAuth2Client.TOKEN_URL}`);
-    this.log(`Using client ID: ${LinkedInOAuth2Client.CLIENT_ID.substring(0, 5)}...`);
+    
+    // Safely get a client ID preview
+    const clientId = LinkedInOAuth2Client.CLIENT_ID;
+    const clientIdPreview = clientId.length > 5 ? `${clientId.substring(0, 5)}...` : clientId;
+    this.log(`Using client ID: ${clientIdPreview}`);
+    
     this.log(`Using redirect URI: ${LinkedInOAuth2Client.REDIRECT_URL}`);
     
     try {
       // Use URL encoded form data which LinkedIn requires
       const body = new URLSearchParams();
       body.append('grant_type', 'authorization_code');
-      body.append('code', code);
+      body.append('code', codeStr);
       body.append('client_id', LinkedInOAuth2Client.CLIENT_ID);
       body.append('client_secret', LinkedInOAuth2Client.CLIENT_SECRET);
       body.append('redirect_uri', LinkedInOAuth2Client.REDIRECT_URL);
       
-      this.log(`Request body params: grant_type=authorization_code&code=${code.substring(0, 5)}...`);
+      this.log(`Request body params: grant_type=authorization_code&code=${codePreview}`);
 
       this.log(`Sending token request to: ${LinkedInOAuth2Client.TOKEN_URL}`);
       this.log(`Full request body: ${body.toString()}`);
