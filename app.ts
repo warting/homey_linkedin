@@ -9,6 +9,17 @@ class LinkedInApp extends OAuth2App {
    * onInit is called when the app is initialized.
    */
   async onInit(): Promise<void> {
+    // First, check settings and set the OAuth client credentials
+    this.updateOAuthCredentials();
+
+    // Listen for settings changes
+    this.homey.settings.on('set', (key) => {
+      if (key === 'client_id' || key === 'client_secret') {
+        this.updateOAuthCredentials();
+      }
+    });
+
+    // Then initialize the OAuth app
     await super.onInit();
 
     this.log('LinkedIn App has been initialized');
@@ -24,6 +35,22 @@ class LinkedInApp extends OAuth2App {
 
     // Register flow cards (will be implemented later)
     await this.registerFlowCards();
+  }
+
+  /**
+   * Update OAuth credentials from app settings
+   */
+  updateOAuthCredentials(): void {
+    const clientId = this.homey.settings.get('client_id');
+    const clientSecret = this.homey.settings.get('client_secret');
+
+    if (clientId) {
+      LinkedInOAuth2Client.setClientId(clientId);
+    }
+
+    if (clientSecret) {
+      LinkedInOAuth2Client.setClientSecret(clientSecret);
+    }
   }
 
   /**

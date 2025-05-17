@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- The '/homey.js' script must be included in your settings view to work -->
+    <script
+      type="text/javascript"
+      src="/homey.js"
+      data-origin="settings"
+    ></script>
+  </head>
+  <body>
+    <header class="homey-header">
+      <h1 class="homey-title" data-i18n="settings.title">
+        <!-- This will be filled with the translated string with key 'settings.title'. -->
+      </h1>
+      <p class="homey-subtitle" data-i18n="settings.subtitle">
+        <!-- This field will also be translated -->
+      </p>
+    </header>
+
+    <fieldset class="homey-form-fieldset">
+      <legend class="homey-form-legend" data-i18n="settings.linkedin_api">LinkedIn API Credentials</legend>
+
+      <div class="homey-form-group">
+        <label class="homey-form-label" for="client_id" data-i18n="settings.client_id">Client ID</label>
+        <input class="homey-form-input" id="client_id" type="text" value="" />
+        <p class="homey-form-helper" data-i18n="settings.client_id_helper">From the LinkedIn Developer Portal</p>
+      </div>
+
+      <div class="homey-form-group">
+        <label class="homey-form-label" for="client_secret" data-i18n="settings.client_secret">Client Secret</label>
+        <input class="homey-form-input" id="client_secret" type="password" value="" />
+        <p class="homey-form-helper" data-i18n="settings.client_secret_helper">From the LinkedIn Developer Portal</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="homey-form-fieldset">
+      <legend class="homey-form-legend" data-i18n="settings.setup_instructions">Setup Instructions</legend>
+
+      <ol class="homey-form-helper">
+        <li data-i18n="settings.instruction_1">Go to <a href="https://www.linkedin.com/developers/apps/new" target="_blank">LinkedIn Developer Portal</a> and create a new app</li>
+        <li data-i18n="settings.instruction_2">Under "Auth" tab, add the redirect URL: <code>https://homey.app/oauth2/callback</code></li>
+        <li data-i18n="settings.instruction_3">Under "Products" tab, request access to "Share on LinkedIn" and "Sign In with LinkedIn" products</li>
+        <li data-i18n="settings.instruction_4">Copy the Client ID and Client Secret into the fields above</li>
+        <li data-i18n="settings.instruction_5">Save the settings and add a LinkedIn device to continue</li>
+      </ol>
+    </fieldset>
+
+    <button id="save" class="homey-button-primary-full" data-i18n="settings.save">Save Changes</button>
+
+    <script type="text/javascript">
+      // a method named 'onHomeyReady' must be present in your code
+      function onHomeyReady(Homey) {
+        // Tell Homey we're ready to be displayed
+        Homey.ready();
+
+        var clientIdElement = document.getElementById("client_id");
+        var clientSecretElement = document.getElementById("client_secret");
+        var saveElement = document.getElementById("save");
+
+        // Fetch current values
+        Homey.get("client_id", function (err, clientId) {
+          if (err) return Homey.alert(err);
+          if (clientId) clientIdElement.value = clientId;
+        });
+
+        Homey.get("client_secret", function (err, clientSecret) {
+          if (err) return Homey.alert(err);
+          if (clientSecret) clientSecretElement.value = clientSecret;
+        });
+
+        // Save button event handler
+        saveElement.addEventListener("click", function (e) {
+          // Disable the button during saving
+          saveElement.disabled = true;
+
+          // Save the Client ID
+          Homey.set("client_id", clientIdElement.value, function (err) {
+            if (err) {
+              Homey.alert(err);
+              saveElement.disabled = false;
+              return;
+            }
+
+            // Save the Client Secret
+            Homey.set("client_secret", clientSecretElement.value, function (err) {
+              if (err) {
+                Homey.alert(err);
+                saveElement.disabled = false;
+                return;
+              }
+
+              // All saved successfully
+              Homey.alert(Homey.__("settings.saved_successfully"), function() {
+                saveElement.disabled = false;
+              });
+            });
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

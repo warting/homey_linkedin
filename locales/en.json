@@ -1,1 +1,21 @@
-{}
+{
+  "settings": {
+    "title": "LinkedIn App Settings",
+    "subtitle": "Configure your LinkedIn API credentials",
+    "linkedin_api": "LinkedIn API Credentials",
+    "client_id": "Client ID",
+    "client_id_helper": "From the LinkedIn Developer Portal",
+    "client_secret": "Client Secret",
+    "client_secret_helper": "From the LinkedIn Developer Portal",
+    "setup_instructions": "Setup Instructions",
+    "instruction_1": "Go to LinkedIn Developer Portal and create a new app",
+    "instruction_2": "Under \"Auth\" tab, add the redirect URL: https://homey.app/oauth2/callback",
+    "instruction_3": "Under \"Products\" tab, request access to \"Share on LinkedIn\" and \"Sign In with LinkedIn\" products",
+    "instruction_4": "Copy the Client ID and Client Secret into the fields above",
+    "instruction_5": "Save the settings and add a LinkedIn device to continue",
+    "save": "Save Changes",
+    "saved_successfully": "Settings saved successfully!"
+  }
+}
+
+
