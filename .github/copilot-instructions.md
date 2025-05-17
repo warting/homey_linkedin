@@ -10,7 +10,7 @@ This is a Homey app that integrates with LinkedIn, allowing users to post conten
 
 ### Using Homey CLI
 
-- **ALWAYS** use the Homey CLI for creating boilerplate code and components
+- **ALWAYS** use the Homey CLI for creating boilerplate code and components, help the developer what parameters to use when asked
 - Use `homey app driver create` to create new drivers
 - Use `homey app flow create` to create new flow cards (actions, conditions, triggers)
 - Use `homey app validate` to validate the app structure and configuration
@@ -37,7 +37,7 @@ This is a Homey app that integrates with LinkedIn, allowing users to post conten
 
 ### Development Workflow
 
-1. Use the CLI to generate the appropriate boilerplate
+1. Use the homey CLI to generate the appropriate boilerplate
 2. Extend the generated code with your implementation
 3. Validate changes regularly with `homey app validate`
 4. Test functionality with `homey app run`
@@ -75,7 +75,7 @@ This is a Homey app that integrates with LinkedIn, allowing users to post conten
 ### Authentication
 
 - Implement OAuth2 authentication flow for LinkedIn
-- Store tokens securely using Homey's Storage API
+- Store tokens securely using Homey's Storage API, each app instance should have its own token and managed from settings
 - Implement proper token refresh logic
 - Handle authentication failures gracefully
 
@@ -246,14 +246,41 @@ When implementing flow cards, follow this pattern:
 
 ```typescript
 // In the driver class
-private registerFlowCards() {
+registerFlowCards()
+{
   const postUpdateCard = this.homey.flow.getActionCard('post_update');
   postUpdateCard.registerRunListener(async (args, state) => {
-    const { device, message } = args;
+    const {
+      device,
+      message
+    } = args;
     return device.postUpdate(message);
   });
 }
 ```
+
+## Linting
+-- Use ESLint with the recommended TypeScript configuration
+-- Use Prettier for code formatting
+-- Ensure all code is linted before committing
+
+## Common Errors That Need to Be Fixed
+-- ESLint: Identifier 'xxx_ccc' is not in camel case. (camelcase)
+-- ESLint: Redundant use of `await` on a return value. (no-return-await)
+-- ESLint: 'throw' of exception caught locally
+
+## Error Handling Best Practices
+
+### Avoiding 'throw' of Exception Caught Locally
+This warning occurs when throwing an exception inside a try/catch block. The linter flags this because you're catching an exception only to throw another one within the same try block, which is redundant.
+
+**Better Approaches:**
+
+1. Use early returns or conditionals outside try blocks
+2. Restructure with inverted conditions to avoid throwing in try blocks
+3. For validation, check conditions before making API calls
+4. Separate validation logic from API calls
+5. Use if/else logic to handle error cases more explicitly
 
 ## Remember
 
