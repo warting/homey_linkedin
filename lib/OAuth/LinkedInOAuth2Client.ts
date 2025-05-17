@@ -327,8 +327,21 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       this.log(`Received access token: ${tokenResponse.access_token.substring(0, 5)}...`);
 
       // Check if response includes an id_token (OpenID Connect)
-      if ('id_token' in tokenResponse) {
+      if (tokenResponse.id_token) {
         this.log(`Received id_token from LinkedIn`);
+        
+        // Try to extract email from id_token for logging
+        try {
+          const decodedToken = this.parseJwtToken(tokenResponse.id_token);
+          if (decodedToken && decodedToken.email) {
+            this.log(`JWT contains email: ${decodedToken.email}`);
+          }
+          if (decodedToken && decodedToken.sub) {
+            this.log(`JWT contains subject ID: ${decodedToken.sub}`);
+          }
+        } catch (jwtError) {
+          this.log('Could not decode JWT for logging, will continue anyway');
+        }
         
         // Return token including id_token
         return {
@@ -376,6 +389,20 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
           // Ignore errors from this.log
         }
       }
+              
+              // Store this client as the active one in the app
+              try {
+        // Try to access the app instance
+        // @ts-expect-error: Accessing protected property
+        const app = this._app;
+        
+        if (app && typeof app.setActiveOAuth2Client === 'function') {
+          this.log('Storing this client as the active OAuth2 client in the app');
+          app.setActiveOAuth2Client(this);
+        }
+              } catch (appError) {
+        this.error('Could not store active client in app:', appError);
+              }
     } catch (e) {
       // Last resort fallback - should never get here
       console.error('[LinkedInOAuth2Client] Error in safeLog:', e);
@@ -401,8 +428,19 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     try {
       // Use a direct fetch approach instead of this.get to have more control
       const token = this.getToken();
-      if (!token || !token.access_token) {
-        console.error('[LinkedInOAuth2Client] No access token available for API request');
+      if (!token) {
+        console.error('[LinkedInOAuth2Client] No token object available for API request');
+        return fallbackProfile;
+      }
+      
+      // Log detailed token information to debug
+      console.log('[LinkedInOAuth2Client] Token object exists, checking properties');
+      console.log('[LinkedInOAuth2Client] Has access_token:', !!token.access_token);
+      console.log('[LinkedInOAuth2Client] Has id_token:', !!token.id_token);
+      console.log('[LinkedInOAuth2Client] Token type:', token.token_type || 'not set');
+      
+      if (!token.access_token) {
+        console.error('[LinkedInOAuth2Client] No access_token property in token object');
         return fallbackProfile;
       }
       
@@ -521,6 +559,12 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       } else {
         console.log('[LinkedInOAuth2Client] No id_token available, using API to get email');
       }
+      
+      // Log detailed token information to debug
+      console.log('[LinkedInOAuth2Client] Token object exists, checking properties');
+      console.log('[LinkedInOAuth2Client] Has access_token:', !!token.access_token);
+      console.log('[LinkedInOAuth2Client] Has id_token:', !!token.id_token);
+      console.log('[LinkedInOAuth2Client] Token type:', token.token_type || 'not set');
       
       // If we don't have an access token, return the fallback
       if (!token.access_token) {
@@ -800,7 +844,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
    * @param token JWT token string
    * @returns Decoded payload or null if invalid
    */
-  private parseJwtToken(token: string): JwtPayload | null {
+  public parseJwtToken(token: string): JwtPayload | null {
     try {
       // JWT tokens are three base64 parts separated by dots
       const parts = token.split('.');
@@ -820,6 +864,16 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       const jwt = JSON.parse(decoded);
       console.log('[LinkedInOAuth2Client] Successfully parsed JWT token');
       
+      // Log important fields for debugging
+      if (jwt) {
+        if (jwt.email) console.log('[LinkedInOAuth2Client] JWT contains email:', jwt.email);
+        if (jwt.sub) console.log('[LinkedInOAuth2Client] JWT contains subject:', jwt.sub);
+        if (jwt.name) console.log('[LinkedInOAuth2Client] JWT contains name:', jwt.name);
+        
+        // Log all available fields
+        console.log('[LinkedInOAuth2Client] JWT fields:', Object.keys(jwt).join(', '));
+      }
+      
       return jwt;
     } catch (error) {
       console.error('[LinkedInOAuth2Client] Error parsing JWT token:', error);
@@ -835,6 +889,41 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     // Access the token from the OAuth2Client parent class
     // @ts-expect-error: Accessing protected property from parent class
     return this._token;
+  }
+  
+  /**
+   * Set the current OAuth2 token directly
+   * Only use this method for debugging or special cases
+   * @param token Token to set
+   */
+  setToken(token: OAuth2Token): void {
+    if (!token) {
+      console.error('[LinkedInOAuth2Client] Cannot set null token');
+      return;
+    }
+    
+    console.log('[LinkedInOAuth2Client] Manually setting token');
+    
+    // Set the token to the protected property
+    // @ts-expect-error: Setting protected property from parent class
+    this._token = token;
+    
+    // Verify token was set
+    const verifyToken = this.getToken();
+    if (verifyToken && verifyToken.access_token) {
+      console.log('[LinkedInOAuth2Client] Token successfully set manually');
+    } else {
+      console.error('[LinkedInOAuth2Client] Failed to manually set token');
+    }
+  }
+  
+  /**
+   * Get the current session ID
+   * @returns The current session ID
+   */
+  getSessionId(): string {
+    // @ts-expect-error: Accessing protected property from parent class
+    return this._sessionId;
   }
   
   /**
