@@ -1,163 +1,122 @@
 import { OAuth2Driver } from 'homey-oauth2app';
 import LinkedInOAuth2Client from '../../lib/OAuth/LinkedInOAuth2Client';
 
+/**
+ * LinkedIn User Driver
+ * Handles discovering and managing LinkedIn user devices
+ */
 class LinkedInUserDriver extends OAuth2Driver {
-    // Define the LinkedIn OAuth2 client class to be used by this driver
-    static CLIENT_CLASS = LinkedInOAuth2Client;
+  /**
+   * This method is called when the driver is initialized with OAuth2
+   */
+  async onOAuth2Init(): Promise<void> {
+    // Use type assertion to access log method
+    (this as any).log('LinkedIn User Driver has been initialized');
 
-    /**
-     * This method is called when the driver is initialized with OAuth2
-     */
-    async onOAuth2Init() {
-      this.log('LinkedIn User Driver has been initialized');
+    // Register flow cards
+    await this.registerFlowCards();
+  }
 
-      // Register flow cards
-      await this.registerFlowCards();
-    }
+  /**
+   * Register flow cards for this driver
+   */
+  async registerFlowCards(): Promise<void> {
+    // Use type assertion to access log method
+    (this as any).log('Registering flow cards for LinkedIn User Driver');
 
-    /**
-     * Register flow cards for this driver
-     */
-    async registerFlowCards() {
-      this.log('Registering flow cards for LinkedIn User Driver');
+    // Use type assertion to access homey property
+    const postTextUpdateCard = (this as any).homey.flow.getActionCard('post_text_update');
+    postTextUpdateCard.registerRunListener(async (args: any) => {
+      const { device, text, visibility } = args;
+      return device.postTextUpdate({ text, visibility });
+    });
 
-      // Register post_text_update flow card
-      const postTextUpdateCard = this.homey.flow.getActionCard('post_text_update');
-      postTextUpdateCard.registerRunListener(async (args) => {
-        const { device, text, visibility } = args;
-        return device.postTextUpdate({ text, visibility });
+    // Use type assertion to access homey property
+    const postLinkUpdateCard = (this as any).homey.flow.getActionCard('post_link_update');
+    postLinkUpdateCard.registerRunListener(async (args: any) => {
+      const {
+        device, text, linkUrl, title, description, visibility,
+      } = args;
+      return device.postLinkUpdate({
+        text,
+        linkUrl,
+        title,
+        description,
+        visibility,
       });
+    });
+  }
 
-      // Register post_link_update flow card
-      const postLinkUpdateCard = this.homey.flow.getActionCard('post_link_update');
-      postLinkUpdateCard.registerRunListener(async (args) => {
-        const {
-          device, text, linkUrl, title, description, visibility,
-        } = args;
-        return device.postLinkUpdate({
-          text,
-          linkUrl,
-          title,
-          description,
-          visibility,
-        });
-      });
-    }
+  /**
+   * This method is called when a user is pairing devices
+   * It should return an array of devices that will be added
+   */
+  async onPairListDevices({ oAuth2Client }: { oAuth2Client: LinkedInOAuth2Client }): Promise<Array<any>> {
+    // Use type assertion to access log method
+    (this as any).log('Listing LinkedIn devices');
 
-    /**
-     * This method is called when a user is pairing devices
-     * It should return an array of devices that will be added
-     */
-    async onPairListDevices({ oAuth2Client }) {
-      this.log('Listing LinkedIn devices');
+    try {
+      // Check if we have a valid oAuth2Client
+      if (!oAuth2Client) {
+        throw new Error('No OAuth2 client available');
+      }
 
+      // Fetch the user profile from LinkedIn
+      const profileResponse = await oAuth2Client.getUserProfile();
+
+      if (!profileResponse.data || !profileResponse.data.id) {
+        throw new Error('Profile response was empty or invalid');
+      }
+
+      const profile = profileResponse.data;
+
+      // Get email address
+      let email = 'unknown@email.com';
       try {
-        // Check if we have a valid oAuth2Client
-        if (!oAuth2Client) {
-          this.log('No OAuth2 client available, creating fallback device');
-          return this.createFallbackDevice('auth-needed');
-        }
-
-        // Check if the client has a token
-        const token = oAuth2Client.getToken();
-        if (!token || !token.access_token) {
-          this.log('No access token available in client, creating fallback device');
-          return this.createFallbackDevice('auth-needed');
-        }
-
-        // Since we have a valid client with token, let's get the profile data
-        this.log('Fetching LinkedIn profile...');
-        let profile;
-        try {
-          profile = await oAuth2Client.getUserProfile();
-          if (!profile || !profile.id) {
-            this.log('Profile response was empty or invalid');
-            return this.createFallbackDevice('profile-error');
-          }
-        } catch (profileError) {
-          this.error('Error fetching LinkedIn profile:', profileError);
-          return this.createFallbackDevice('profile-error');
-        }
-
-        // Get email address
-        let email = 'unknown@email.com';
-        try {
-          email = await oAuth2Client.getUserEmail();
-          this.log('LinkedIn email fetched:', email);
-        } catch (emailError) {
-          this.log('Could not fetch LinkedIn email, using fallback');
-        }
-
-        // Return the LinkedIn user as a device
-        const device = {
-          name: `${profile.localizedFirstName || 'LinkedIn'} ${profile.localizedLastName || 'User'} ${email ? `(${email})` : ''}`,
-          data: {
-            id: profile.id || 'unknown-id', // Ensure we always have an ID
-          },
-          store: {
-            profileId: profile.id || 'unknown-id',
-            email,
-            firstName: profile.localizedFirstName || '',
-            lastName: profile.localizedLastName || '',
-          },
-        };
-
-        this.log('Device ready to be added:', device.name);
-        return [device];
-      } catch (error) {
-        this.error('Unexpected error during device listing:', error);
-        return this.createFallbackDevice('unexpected-error');
-      }
-    }
-
-    /**
-     * Create a fallback device when there are errors in the pairing process
-     */
-    private createFallbackDevice(errorType: string): Array<any> {
-      this.log(`Creating fallback device due to ${errorType}`);
-
-      // Define user-friendly names based on error type
-      let deviceName = '';
-      const firstName = 'LinkedIn';
-      let lastName = '';
-
-      // Customize the error message based on the type
-      switch (errorType) {
-        case 'auth-needed':
-          deviceName = 'LinkedIn (Authentication Required)';
-          lastName = 'Authentication Required';
-          break;
-        case 'auth-error':
-          deviceName = 'LinkedIn (Authentication Failed)';
-          lastName = 'Auth Failed';
-          break;
-        case 'profile-error':
-          deviceName = 'LinkedIn (Profile Access Error)';
-          lastName = 'Profile Error';
-          break;
-        case 'no-auth-session':
-          deviceName = 'LinkedIn (Not Authenticated)';
-          lastName = 'Not Authenticated';
-          break;
-        default:
-          deviceName = `LinkedIn (${errorType})`;
-          lastName = errorType;
+        email = await oAuth2Client.getUserEmail();
+        // Use type assertion to access log method
+        (this as any).log('LinkedIn email fetched:', email);
+      } catch (emailError) {
+        // Use type assertion to access log method
+        (this as any).log('Could not fetch LinkedIn email, using fallback');
       }
 
+      // Return the LinkedIn user as a device
       return [{
-        name: deviceName,
+        name: `${profile.localizedFirstName || 'LinkedIn'} ${profile.localizedLastName || 'User'} ${email ? `(${email})` : ''}`,
         data: {
-          id: `error-${errorType}-${Date.now()}`,
+          id: profile.id,
         },
         store: {
-          profileId: `error-${errorType}`,
+          profileId: profile.id,
+          email,
+          firstName: profile.localizedFirstName || '',
+          lastName: profile.localizedLastName || '',
+        },
+      }];
+    } catch (err) {
+      // Cast error to a type with message property
+      const error = err as Error;
+
+      // Use type assertion to access error method
+      (this as any).error('Error during device pairing:', error);
+
+      // Return a fallback device for error cases
+      return [{
+        name: `LinkedIn (${error.message || 'Error'})`,
+        data: {
+          id: `error-${Date.now()}`,
+        },
+        store: {
+          profileId: 'error',
           email: 'unknown@email.com',
-          firstName,
-          lastName,
-          errorType,
+          firstName: 'LinkedIn',
+          lastName: 'Error',
+          errorType: error.message || 'unknown-error',
         },
       }];
     }
+  }
 }
 
 module.exports = LinkedInUserDriver;

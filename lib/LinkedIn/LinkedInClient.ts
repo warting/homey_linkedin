@@ -34,17 +34,6 @@ export interface LinkedInPostResponse {
 }
 
 /**
- * Interface for LinkedIn share media
- */
-interface ShareMedia {
-  status: string;
-  originalUrl?: string;
-  media?: string;
-  title?: { text: string };
-  description?: { text: string };
-}
-
-/**
  * LinkedIn API Client
  *
  * This class handles communication with LinkedIn API
@@ -69,7 +58,7 @@ export class LinkedInClient {
    */
   async getProfile(): Promise<LinkedInProfile> {
     const response = await this.oAuth2Client.getUserProfile();
-    return response as LinkedInProfile;
+    return response.data as unknown as LinkedInProfile;
   }
 
   /**
@@ -88,204 +77,58 @@ export class LinkedInClient {
    * @param options Post options containing text and visibility
    */
   async postTextUpdate(options: { text: string; visibility?: string }): Promise<ApiResponse> {
-    const userId = await this.getUserId();
-    const visibility = options.visibility || 'CONNECTIONS';
-
-    return this.oAuth2Client.post({
-      path: '/ugcPosts',
-      headers: {
-        'X-Restli-Protocol-Version': '2.0.0',
-        'Content-Type': 'application/json',
-      },
-      body: {
-        author: `urn:li:person:${userId}`,
-        lifecycleState: 'PUBLISHED',
-        specificContent: {
-          'com.linkedin.ugc.ShareContent': {
-            shareCommentary: {
-              text: options.text,
-            },
-            shareMediaCategory: 'NONE',
-          },
-        },
-        visibility: {
-          'com.linkedin.ugc.MemberNetworkVisibility': visibility,
-        },
-      },
-    });
+    // Use the postMessage method from the OAuth2Client
+    return this.oAuth2Client.postMessage(options.text, options.visibility);
   }
 
   /**
-   * Post a link/article update to LinkedIn
-   * @param options Post options containing text, link URL, title, description and visibility
+   * Post a link update to LinkedIn
+   * @param options Post options containing text, link URL, title, description, and visibility
    */
   async postLinkUpdate(options: {
     text: string;
     linkUrl: string;
     title?: string;
     description?: string;
-    visibility?: string
+    visibility?: string;
   }): Promise<ApiResponse> {
-    const userId = await this.getUserId();
-    const visibility = options.visibility || 'CONNECTIONS';
+    // For link updates, we'll use the same postMessage method but format the text to include the link
+    const fullText = `${options.text
+      + (options.title ? `\n\n${options.title}` : '')
+      + (options.description ? `\n${options.description}` : '')
+    }\n${options.linkUrl}`;
 
-    const media: ShareMedia[] = [{
-      status: 'READY',
-      originalUrl: options.linkUrl,
-    }];
-
-    if (options.title) {
-      media[0].title = { text: options.title };
-    }
-
-    if (options.description) {
-      media[0].description = { text: options.description };
-    }
-
-    return this.oAuth2Client.post({
-      path: '/ugcPosts',
-      headers: {
-        'X-Restli-Protocol-Version': '2.0.0',
-        'Content-Type': 'application/json',
-      },
-      body: {
-        author: `urn:li:person:${userId}`,
-        lifecycleState: 'PUBLISHED',
-        specificContent: {
-          'com.linkedin.ugc.ShareContent': {
-            shareCommentary: {
-              text: options.text,
-            },
-            shareMediaCategory: 'ARTICLE',
-            media,
-          },
-        },
-        visibility: {
-          'com.linkedin.ugc.MemberNetworkVisibility': visibility,
-        },
-      },
-    });
-  }
-
-  /**
-   * Register an image for upload to LinkedIn
-   * @returns The upload URL and asset URN
-   */
-  async registerImageUpload(): Promise<{ uploadUrl: string; asset: string }> {
-    const userId = await this.getUserId();
-
-    const response = await this.oAuth2Client.post({
-      path: '/assets',
-      query: {
-        action: 'registerUpload',
-      },
-      headers: {
-        'X-Restli-Protocol-Version': '2.0.0',
-        'Content-Type': 'application/json',
-      },
-      body: {
-        registerUploadRequest: {
-          recipes: [
-            'urn:li:digitalmediaRecipe:feedshare-image',
-          ],
-          owner: `urn:li:person:${userId}`,
-          serviceRelationships: [
-            {
-              relationshipType: 'OWNER',
-              identifier: 'urn:li:userGeneratedContent',
-            },
-          ],
-        },
-      },
-    });
-
-    if (!response.ok || !response.data || !response.data.value) {
-      throw new Error('Failed to register image upload');
-    }
-
-    return {
-      uploadUrl: response.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl,
-      asset: response.data.value.asset,
-    };
-  }
-
-  /**
-   * Upload an image binary to LinkedIn
-   * @param uploadUrl The upload URL from registerImageUpload
-   * @param imageBuffer The image binary data
-   */
-  async uploadImage(uploadUrl: string, imageBuffer: Buffer): Promise<void> {
-    // Since this is a binary upload, we need to use fetch directly
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.oAuth2Client.getToken().access_token}`,
-      },
-      body: imageBuffer,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload image: ${response.status} ${response.statusText}`);
-    }
+    return this.oAuth2Client.postMessage(fullText, options.visibility);
   }
 
   /**
    * Post an image update to LinkedIn
-   * @param options Post options containing text, image buffer, title, description and visibility
+   * @param options Post options containing text, image URL, and visibility
    */
   async postImageUpdate(options: {
     text: string;
-    imageBuffer: Buffer;
+    imageUrl: string;
     title?: string;
     description?: string;
     visibility?: string;
   }): Promise<ApiResponse> {
-    const userId = await this.getUserId();
-    const visibility = options.visibility || 'CONNECTIONS';
+    // For now, we'll use the same approach as link updates
+    // In a future implementation, we could add proper image upload support
+    const fullText = `${options.text
+      + (options.title ? `\n\n${options.title}` : '')
+      + (options.description ? `\n${options.description}` : '')
+    }\n[Image: ${options.imageUrl}]`;
 
-    // Step 1: Register the upload
-    const { uploadUrl, asset } = await this.registerImageUpload();
+    return this.oAuth2Client.postMessage(fullText, options.visibility);
+  }
 
-    // Step 2: Upload the image
-    await this.uploadImage(uploadUrl, options.imageBuffer);
-
-    // Step 3: Create the post with the image
-    const media: ShareMedia[] = [{
-      status: 'READY',
-      media: asset,
-    }];
-
-    if (options.title) {
-      media[0].title = { text: options.title };
-    }
-
-    if (options.description) {
-      media[0].description = { text: options.description };
-    }
-
-    return this.oAuth2Client.post({
-      path: '/ugcPosts',
-      headers: {
-        'X-Restli-Protocol-Version': '2.0.0',
-        'Content-Type': 'application/json',
-      },
-      body: {
-        author: `urn:li:person:${userId}`,
-        lifecycleState: 'PUBLISHED',
-        specificContent: {
-          'com.linkedin.ugc.ShareContent': {
-            shareCommentary: {
-              text: options.text,
-            },
-            shareMediaCategory: 'IMAGE',
-            media,
-          },
-        },
-        visibility: {
-          'com.linkedin.ugc.MemberNetworkVisibility': visibility,
-        },
-      },
-    });
+  /**
+   * Check if the user is authenticated with LinkedIn
+   */
+  isAuthenticated(): boolean {
+    // Check if the OAuth2 client has a valid token
+    const token = (this.oAuth2Client as any).getToken?.();
+    return !!token?.access_token;
   }
 }
 

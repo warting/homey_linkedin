@@ -7,6 +7,11 @@ import Homey from 'homey';
  */
 export class OAuth2Driver extends Homey.Driver {
   /**
+   * The Homey instance.
+   */
+  homey: typeof Homey;
+
+  /**
    * @returns {*}
    */
   getOAuth2ConfigId(): any;
