@@ -159,7 +159,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   async onGetTokenByCode(args: { code: string }): Promise<OAuth2Token> {
     this.log('Getting token by authorization code');
 
-    const code = args.code;
+    const { code } = args;
     if (!code) {
       throw new Error('Invalid authorization code');
     }
@@ -316,7 +316,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         throw new Error(`LinkedIn API error: ${response.status}`);
       }
 
-      const data = response.data;
+      const { data } = response;
 
       if (data.elements && data.elements.length > 0) {
         // Try to find primary email address
@@ -399,7 +399,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
           specificContent: {
             'com.linkedin.ugc.ShareContent': {
               shareCommentary: {
-                text: text,
+                text,
               },
               shareMediaCategory: 'NONE',
             },

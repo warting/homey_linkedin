@@ -1,7 +1,7 @@
 import Homey from 'homey';
+import { EventEmitter } from 'events';
 import { OAuth2Token } from './OAuth2Token';
 import { ApiResponse } from './ApiResponse';
-import { EventEmitter } from 'events';
 
 /**
  * OAuth2Client
