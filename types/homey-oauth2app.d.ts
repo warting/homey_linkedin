@@ -23,10 +23,16 @@ declare module 'homey-oauth2app' {
     put(options: any): Promise<ApiResponse>;
     delete(options: any): Promise<ApiResponse>;
     emit(event: string, ...args: any[]): Promise<void>;
+    getToken(): OAuth2Token | undefined;
+    setToken(token: OAuth2Token): void;
+    getSessionId(): string;
+    onInit?(): Promise<void>;
   }
 
   export class OAuth2Driver extends Homey.Driver {
     getOAuth2Client<T extends OAuth2Client>(): T;
+    setStoreValue(key: string, value: any): Promise<void>;
+    getStoreValue(key: string): Promise<any>;
   }
 
   export class OAuth2Device extends Homey.Device {
