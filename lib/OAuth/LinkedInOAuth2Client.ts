@@ -98,6 +98,9 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   private static _clientSecret: string = '';
   private static _redirectUrl: string = '';
 
+  // Reference to the driver for settings access
+  private driver: any = null;
+
   // Get credentials from app settings only
   static get CLIENT_ID(): string {
     return LinkedInOAuth2Client._clientId || ''; // Return empty string instead of undefined
@@ -128,10 +131,12 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     };
 
     super(safeOptions);
-  }
 
-  // We don't need to override getAuthorizationUrl
-  // The parent OAuth2Client class will use the redirectUrl provided in the constructor
+    // Store reference to driver if provided
+    if (options.driver) {
+      this.driver = options.driver;
+    }
+  }
 
   // Methods to set credentials at runtime (to be called from the app)
   static setClientId(clientId: string): void {
@@ -199,6 +204,68 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       this.log(`Using redirect URL: ${LinkedInOAuth2Client.REDIRECT_URL}`);
     } else {
       this.error('OAuth2 redirect URL is not set!');
+    }
+
+    // Try to load token from driver settings
+    await this.loadTokenFromSettings();
+  }
+
+  /**
+   * Load token from driver settings
+   */
+  private async loadTokenFromSettings(): Promise<void> {
+    try {
+      if (!this.driver) {
+        this.log('No driver reference available to load token from settings');
+        return;
+      }
+
+      // Get token from driver settings
+      const tokenStr = await this.driver.getSetting('oauth2_token');
+      if (!tokenStr) {
+        this.log('No token found in driver settings');
+        return;
+      }
+
+      // Parse token from string
+      try {
+        const token = JSON.parse(tokenStr);
+        this.log('Successfully loaded token from driver settings');
+
+        // Set token in client
+        // @ts-expect-error: Setting protected property from parent class
+        this._token = token;
+
+        this.log('Token loaded from settings successfully');
+      } catch (parseError) {
+        this.error('Error parsing token from settings:', parseError);
+      }
+    } catch (error) {
+      this.error('Error loading token from settings:', error);
+    }
+  }
+
+  /**
+   * Save token to driver settings
+   */
+  private async saveTokenToSettings(token: OAuth2Token): Promise<void> {
+    try {
+      if (!this.driver) {
+        this.log('No driver reference available to save token to settings');
+        return;
+      }
+
+      // Stringify token for storage
+      const tokenStr = JSON.stringify(token);
+
+      // Save token to driver settings
+      await this.driver.setSettings({
+        oauth2_token: tokenStr
+      });
+
+      this.log('Token saved to driver settings successfully');
+    } catch (error) {
+      this.error('Error saving token to settings:', error);
     }
   }
 
@@ -327,558 +394,22 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
       this.log(`Received access token: ${tokenResponse.access_token.substring(0, 5)}...`);
 
-      // Check if response includes an id_token (OpenID Connect)
-      if (tokenResponse.id_token) {
-        this.log('Received id_token from LinkedIn');
-
-        // Try to extract email from id_token for logging
-        try {
-          const decodedToken = this.parseJwtToken(tokenResponse.id_token);
-          if (decodedToken && decodedToken.email) {
-            this.log(`JWT contains email: ${decodedToken.email}`);
-          }
-          if (decodedToken && decodedToken.sub) {
-            this.log(`JWT contains subject ID: ${decodedToken.sub}`);
-          }
-        } catch (jwtError) {
-          this.log('Could not decode JWT for logging, will continue anyway');
-        }
-
-        // Return token including id_token
-        return {
-          access_token: tokenResponse.access_token,
-          refresh_token: tokenResponse.refresh_token,
-          token_type: tokenResponse.token_type,
-          expires_in: tokenResponse.expires_in,
-          id_token: tokenResponse.id_token,
-        };
-      }
-
-      // Standard OAuth2 token without id_token
-      return {
+      // Create token object
+      const token: OAuth2Token = {
         access_token: tokenResponse.access_token,
         refresh_token: tokenResponse.refresh_token,
         token_type: tokenResponse.token_type,
         expires_in: tokenResponse.expires_in,
-        id_token: tokenResponse.id_token, // Include the ID token if available
+        id_token: tokenResponse.id_token,
       };
+
+      // Save token to driver settings
+      await this.saveTokenToSettings(token);
+
+      return token;
     } catch (error) {
       this.error('Error exchanging code for token:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Safe console logging that doesn't emit events
-   * This avoids the unhandled error issues that can occur with this.error()
-   */
-  private safeLog(level: 'log' | 'warn' | 'error', ...args: any[]): void {
-    try {
-      const prefix = `[LinkedInOAuth2Client] ${level.toUpperCase()}:`;
-
-      // Use console methods directly instead of this.log or this.error
-      if (level === 'error') {
-        console.error(prefix, ...args);
-      } else if (level === 'warn') {
-        console.warn(prefix, ...args);
-      } else {
-        console.log(prefix, ...args);
-        // Also try to use this.log for normal logs if it's available
-        try {
-          this.log(...args);
-        } catch (e) {
-          // Ignore errors from this.log
-        }
-      }
-
-      // Store this client as the active one in the app
-      try {
-        // Try to access the app instance
-        // @ts-expect-error: Accessing protected property
-        const app = this._app;
-
-        if (app && typeof app.setActiveOAuth2Client === 'function') {
-          this.log('Storing this client as the active OAuth2 client in the app');
-          app.setActiveOAuth2Client(this);
-        }
-      } catch (appError) {
-        this.error('Could not store active client in app:', appError);
-      }
-    } catch (e) {
-      // Last resort fallback - should never get here
-      console.error('[LinkedInOAuth2Client] Error in safeLog:', e);
-    }
-  }
-
-  /**
-   * Get the user's LinkedIn profile information - with robust error handling
-   * @returns A LinkedIn profile object with at least an id field
-   */
-  async getUserProfile(): Promise<LinkedInProfileResponse> {
-    // Use direct console.log instead of this.log to avoid any potential errors
-    console.log('[LinkedInOAuth2Client] Fetching LinkedIn profile data from API');
-
-    // Define fallback profile
-    const fallbackProfile: LinkedInProfileResponse = {
-      id: 'unknown-profile',
-      localizedFirstName: 'LinkedIn',
-      localizedLastName: 'User',
-    };
-
-    // First try/catch block for the API request
-    try {
-      // Use a direct fetch approach instead of this.get to have more control
-      const token = this.getToken();
-      if (!token) {
-        console.error('[LinkedInOAuth2Client] No token object available for API request');
-        return fallbackProfile;
-      }
-
-      // Log detailed token information to debug
-      console.log('[LinkedInOAuth2Client] Token object exists, checking properties');
-      console.log('[LinkedInOAuth2Client] Has access_token:', !!token.access_token);
-      console.log('[LinkedInOAuth2Client] Has id_token:', !!token.id_token);
-      console.log('[LinkedInOAuth2Client] Token type:', token.token_type || 'not set');
-
-      if (!token.access_token) {
-        console.error('[LinkedInOAuth2Client] No access_token property in token object');
-        return fallbackProfile;
-      }
-
-      const apiUrl = `${LinkedInOAuth2Client.API_URL}/me?fields=id,localizedFirstName,localizedLastName`;
-      console.log(`[LinkedInOAuth2Client] Making direct request to: ${apiUrl}`);
-
-      const fetchResponse = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token.access_token}`,
-          'X-RestLi-Protocol-Version': '2.0.0',
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log(`[LinkedInOAuth2Client] API response status: ${fetchResponse.status}`);
-
-      // Check if the response is OK
-      if (!fetchResponse.ok) {
-        console.error(`[LinkedInOAuth2Client] LinkedIn API returned error status: ${fetchResponse.status}`);
-
-        // Try to read the error response
-        try {
-          const errorText = await fetchResponse.text();
-          console.error(`[LinkedInOAuth2Client] Error response: ${errorText}`);
-        } catch (textError) {
-          console.error('[LinkedInOAuth2Client] Could not read error response text');
-        }
-
-        // Return fallback profile data to prevent app crash
-        return {
-          id: `error-${fetchResponse.status}`,
-          localizedFirstName: 'LinkedIn',
-          localizedLastName: 'User',
-        };
-      }
-
-      // Try to parse the JSON response
-      let data: any;
-      try {
-        data = await fetchResponse.json();
-        console.log('[LinkedInOAuth2Client] Successfully parsed profile response');
-      } catch (jsonError) {
-        console.error('[LinkedInOAuth2Client] Failed to parse JSON response:', jsonError);
-        return {
-          id: 'parse-error',
-          localizedFirstName: 'LinkedIn',
-          localizedLastName: 'User',
-        };
-      }
-
-      // Verify the data has an ID
-      if (!data || !data.id) {
-        console.error('[LinkedInOAuth2Client] Profile data is missing ID:', data);
-        return {
-          id: 'missing-id',
-          localizedFirstName: 'LinkedIn',
-          localizedLastName: 'User',
-        };
-      }
-
-      console.log(`[LinkedInOAuth2Client] Successfully retrieved profile with ID: ${data.id}`);
-
-      // Return the profile data as a proper LinkedInProfileResponse
-      const profile: LinkedInProfileResponse = {
-        id: data.id,
-        localizedFirstName: data.localizedFirstName || 'LinkedIn',
-        localizedLastName: data.localizedLastName || 'User',
-      };
-
-      return profile;
-    } catch (error) {
-      // Catch any errors from the API request
-      console.error('[LinkedInOAuth2Client] Error fetching profile:', error);
-
-      // Return fallback profile data to prevent app crash
-      return {
-        id: 'api-error',
-        localizedFirstName: 'LinkedIn',
-        localizedLastName: 'User',
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  /**
-   * Get the user's LinkedIn email address, first from id_token if available, then from API
-   * @returns Email address as string, or unknown@email.com if unavailable
-   */
-  async getUserEmail(): Promise<string> {
-    console.log('[LinkedInOAuth2Client] Attempting to get LinkedIn email');
-
-    // Default fallback email
-    const fallbackEmail = 'unknown@email.com';
-
-    try {
-      // Get the token from our OAuth2 client
-      const token = this.getToken();
-      if (!token) {
-        console.error('[LinkedInOAuth2Client] No token available');
-        return fallbackEmail;
-      }
-
-      // Try to get email from id_token if available
-      if (token.id_token) {
-        console.log('[LinkedInOAuth2Client] Found id_token, trying to extract email from JWT');
-        const jwt = this.parseJwtToken(token.id_token);
-
-        if (jwt && jwt.email) {
-          console.log(`[LinkedInOAuth2Client] Successfully extracted email from JWT: ${jwt.email}`);
-          return jwt.email;
-        }
-        console.log('[LinkedInOAuth2Client] No email found in JWT, falling back to API');
-
-      } else {
-        console.log('[LinkedInOAuth2Client] No id_token available, using API to get email');
-      }
-
-      // Log detailed token information to debug
-      console.log('[LinkedInOAuth2Client] Token object exists, checking properties');
-      console.log('[LinkedInOAuth2Client] Has access_token:', !!token.access_token);
-      console.log('[LinkedInOAuth2Client] Has id_token:', !!token.id_token);
-      console.log('[LinkedInOAuth2Client] Token type:', token.token_type || 'not set');
-
-      // If we don't have an access token, return the fallback
-      if (!token.access_token) {
-        console.error('[LinkedInOAuth2Client] No access_token available for API request');
-        return fallbackEmail;
-      }
-
-      console.log('[LinkedInOAuth2Client] Fetching LinkedIn email data from API');
-
-      // Build the API URL
-      const apiUrl = `${LinkedInOAuth2Client.API_URL}/emailAddress?q=members&fields=elements,elements.handle~`;
-      console.log(`[LinkedInOAuth2Client] Requesting email from: ${apiUrl}`);
-
-      // Make direct fetch request
-      const fetchResponse = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token.access_token}`,
-          'X-RestLi-Protocol-Version': '2.0.0',
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      });
-
-      console.log(`[LinkedInOAuth2Client] Email API response status: ${fetchResponse.status}`);
-
-      // Check if response was successful
-      if (!fetchResponse.ok) {
-        console.error(`[LinkedInOAuth2Client] Failed to fetch email: ${fetchResponse.status}`);
-        return fallbackEmail;
-      }
-
-      // Parse response
-      let data: LinkedInEmailResponse | null = null;
-      try {
-        const jsonData = await fetchResponse.json();
-        data = jsonData as LinkedInEmailResponse;
-      } catch (jsonError) {
-        console.error('[LinkedInOAuth2Client] Failed to parse email response JSON:', jsonError);
-        return fallbackEmail;
-      }
-
-      // Make sure data is not null
-      if (!data) {
-        console.error('[LinkedInOAuth2Client] Email data is null');
-        return fallbackEmail;
-      }
-
-      // Extract email from LinkedIn's response structure
-      if (data.elements
-          && data.elements.length > 0
-          && data.elements[0]['handle~']
-          && data.elements[0]['handle~'].emailAddress) {
-        const email = data.elements[0]['handle~'].emailAddress;
-        console.log(`[LinkedInOAuth2Client] Successfully retrieved email: ${email}`);
-        return email;
-      }
-
-      // Try alternative response format
-      if (data.elements
-          && data.elements.length > 0
-          && data.elements[0].handle
-          && data.elements[0].handle.emailAddress) {
-        const email = data.elements[0].handle.emailAddress;
-        console.log(`[LinkedInOAuth2Client] Retrieved email (alt format): ${email}`);
-        return email;
-      }
-
-      console.log('[LinkedInOAuth2Client] Email not found in response');
-      return fallbackEmail;
-    } catch (error) {
-      console.error('[LinkedInOAuth2Client] Error fetching email:', error);
-      return fallbackEmail; // Return default on any error
-    }
-  }
-
-  /**
-   * This method is called when a request is made to the API
-   * Can be used to modify the request before it is sent
-   */
-  async onRequestHeaders({ headers }: {
-    headers: Record<string, string>;
-  }): Promise<Record<string, string>> {
-    try {
-      // Add diagnostic logging for headers
-      this.log('Preparing request headers for LinkedIn API call');
-
-      // Create mutable headers object with the correct type
-      const updatedHeaders: Record<string, string> = {
-        ...headers,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-RestLi-Protocol-Version': '2.0.0',
-      };
-
-      // Check if we have an authorization header and add if needed
-      if (!headers['Authorization'] && this.getToken() && this.getToken().access_token) {
-        this.log('Adding authorization header to request');
-        updatedHeaders['Authorization'] = `Bearer ${this.getToken().access_token}`;
-      }
-
-      return updatedHeaders;
-    } catch (error) {
-      this.error('Error setting request headers:', error);
-      // Return basic headers to avoid breaking the request entirely
-      return {
-        ...headers,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      };
-    }
-  }
-
-  /**
-   * Hook that's called before any request is made
-   * Useful for logging request details for debugging
-   */
-  async onRequest({
-    method,
-    path,
-    body,
-    query,
-    headers,
-  }: {
-    method: string;
-    path: string;
-    body?: any;
-    query?: Record<string, any>;
-    headers: Record<string, string>;
-  }) {
-    try {
-      // Log request details without sensitive info
-      this.log(`API Request: ${method} ${path}`);
-
-      // Log token information for debugging but hide the full token
-      const token = this.getToken();
-      if (token && token.access_token) {
-        const tokenPreview = `${token.access_token.substring(0, 5)}...${token.access_token.substring(token.access_token.length - 5)}`;
-        this.log(`Using access token: ${tokenPreview}`);
-      } else {
-        this.log('No access token available for request');
-      }
-
-      // Log query parameters for debugging
-      if (query && Object.keys(query).length > 0) {
-        this.log(`Query parameters: ${JSON.stringify(query)}`);
-      }
-
-      // Log headers for debugging but hide authorization value
-      const debugHeaders = { ...headers };
-      if (debugHeaders['Authorization']) {
-        debugHeaders['Authorization'] = 'Bearer [hidden]';
-      }
-      this.log(`Request headers: ${JSON.stringify(debugHeaders)}`);
-
-      // Log request body if it exists (for POST/PUT requests)
-      if (body) {
-        this.log(`Request body: ${typeof body === 'string' ? body : JSON.stringify(body)}`);
-      }
-    } catch (error) {
-      // Don't let logging errors break the request
-      this.error('Error in onRequest hook (continuing with request):', error);
-    }
-  }
-
-  /**
-   * This method is called when a request to the API returns an error
-   * Used to handle specific API error cases, like token expiration
-   */
-  async onHandleResult({ result }: { result: ApiResponse }): Promise<ApiResponse> {
-    try {
-      // Check for missing or empty response
-      if (!result) {
-        this.error('Empty result received from API call');
-        throw new Error('Empty response received from LinkedIn API');
-      }
-
-      // Log response status for debugging
-      this.log(`API response status: ${result.status}`);
-
-      // Handle 401 Unauthorized errors (expired token)
-      if (!result.ok && result.status === 401) {
-        this.log('Received 401 Unauthorized response from LinkedIn API');
-
-        // Check if we have data in the response
-        if (result.data) {
-          this.log('Error response data:', JSON.stringify(result.data));
-        }
-
-        try {
-          // Emit refresh_token event which the parent class will handle
-          this.log('Attempting to refresh token...');
-          await this.emit('refresh_token');
-          this.log('Token refreshed successfully');
-
-          // Return a simple success response to let the caller know to retry
-          // Include all required properties of ApiResponse
-          return {
-            ok: true,
-            status: 200,
-            data: { refreshed: true, message: 'Token refreshed, please retry operation' },
-            headers: result.headers || {}, // Preserve original headers or use empty object
-          };
-        } catch (refreshError) {
-          this.error('Failed to refresh token:', refreshError);
-          throw new Error('Token refresh failed');
-        }
-      }
-
-      // Handle 400 Bad Request errors
-      if (!result.ok && result.status === 400) {
-        this.error('Received 400 Bad Request from LinkedIn API:', result.data);
-        throw new Error(`LinkedIn API error: ${JSON.stringify(result.data)}`);
-      }
-
-      // Handle rate limiting
-      if (!result.ok && result.status === 429) {
-        this.error('LinkedIn API rate limit exceeded');
-        throw new Error('LinkedIn API rate limit exceeded. Please try again later.');
-      }
-
-      return result;
-    } catch (error) {
-      this.error('Error in onHandleResult:', error);
-      // Rethrow with additional context
-      throw error instanceof Error
-        ? new Error(`LinkedIn API error: ${error.message}`)
-        : new Error('Unknown error handling LinkedIn API response');
-    }
-  }
-
-  /**
-   * Post a message to LinkedIn
-   * @param message The message text
-   * @param visibility Who can see this post (public, connections, etc.)
-   */
-  async postMessage(message: string, visibility: string = 'CONNECTIONS'): Promise<ApiResponse> {
-    const userId = await this.getUserId();
-
-    return this.post({
-      path: '/ugcPosts',
-      body: {
-        author: `urn:li:person:${userId}`,
-        lifecycleState: 'PUBLISHED',
-        specificContent: {
-          'com.linkedin.ugc.ShareContent': {
-            shareCommentary: {
-              text: message,
-            },
-            shareMediaCategory: 'NONE',
-          },
-        },
-        visibility: {
-          'com.linkedin.ugc.MemberNetworkVisibility': visibility,
-        },
-      },
-    });
-  }
-
-  /**
-   * Get the user's LinkedIn ID with fallback handling
-   * @returns User ID as string, or a fallback ID if unavailable
-   */
-  async getUserId(): Promise<string> {
-    try {
-      const profile: LinkedInProfileResponse = await this.getUserProfile();
-      // TypeScript now knows profile has an id property
-      return profile.id || 'unknown-user-id';
-    } catch (error) {
-      console.error('[LinkedInOAuth2Client] Error in getUserId:', error);
-      return 'error-user-id'; // Fallback ID on error
-    }
-  }
-
-  /**
-   * Parse a JWT token to extract the payload
-   * @param token JWT token string
-   * @returns Decoded payload or null if invalid
-   */
-  public parseJwtToken(token: string): JwtPayload | null {
-    try {
-      // JWT tokens are three base64 parts separated by dots
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        console.log('[LinkedInOAuth2Client] Invalid JWT token format');
-        return null;
-      }
-
-      // Decode the middle part (payload)
-      const payload = parts[1];
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-
-      // Use Buffer for base64 decoding in Node.js
-      const decoded = base64Decode(base64);
-
-      // Parse the JSON payload
-      const jwt = JSON.parse(decoded);
-      console.log('[LinkedInOAuth2Client] Successfully parsed JWT token');
-
-      // Log important fields for debugging
-      if (jwt) {
-        if (jwt.email) console.log('[LinkedInOAuth2Client] JWT contains email:', jwt.email);
-        if (jwt.sub) console.log('[LinkedInOAuth2Client] JWT contains subject:', jwt.sub);
-        if (jwt.name) console.log('[LinkedInOAuth2Client] JWT contains name:', jwt.name);
-
-        // Log all available fields
-        console.log('[LinkedInOAuth2Client] JWT fields:', Object.keys(jwt).join(', '));
-      }
-
-      return jwt;
-    } catch (error) {
-      console.error('[LinkedInOAuth2Client] Error parsing JWT token:', error);
-      return null;
     }
   }
 
@@ -909,13 +440,10 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     // @ts-expect-error: Setting protected property from parent class
     this._token = token;
 
-    // Persist the token to the session storage
-    try {
-      this.saveToken();
-      this.log('[LinkedInOAuth2Client] Token saved to session storage');
-    } catch (error) {
-      this.error('[LinkedInOAuth2Client] Failed to save token to session storage:', error);
-    }
+    // Save token to driver settings
+    this.saveTokenToSettings(token).catch(error =>
+      this.error('Error saving token to settings:', error)
+    );
 
     // Verify token was set
     const verifyToken = this.getToken();
@@ -927,77 +455,208 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
-     * Save the current token to session storage
-     * This ensures the token is persisted and not just stored in memory
-     */
-  private saveToken(): void {
+   * Get user profile information from LinkedIn
+   * This uses OpenID Connect id_token if available, or the LinkedIn API otherwise
+   */
+  async getUserProfile(): Promise<LinkedInProfileResponse> {
+    this.log('Getting LinkedIn user profile');
+
+    // Check if we have an id_token that contains user info
+    const token = this.getToken();
+    if (token && token.id_token) {
+      try {
+        this.log('Using id_token to extract profile information');
+        // Parse the JWT token
+        const jwtPayload = this.parseJwtToken(token.id_token);
+
+        if (jwtPayload && jwtPayload.sub) {
+          this.log('Successfully extracted profile from id_token');
+          // Create profile object from JWT claims
+          return {
+            id: jwtPayload.sub,
+            localizedFirstName: jwtPayload.given_name || '',
+            localizedLastName: jwtPayload.family_name || '',
+            profilePicture: jwtPayload.picture ? { displayImage: jwtPayload.picture } : undefined,
+          };
+        }
+        this.log('id_token did not contain expected profile data, falling back to API');
+      } catch (error) {
+        this.error('Error extracting profile from id_token:', error);
+        this.log('Falling back to LinkedIn API for profile');
+      }
+    }
+
+    // If we don't have an id_token or it failed, fetch from the API
     try {
-      const token = this.getToken();
-      if (!token) {
-        this.error('Cannot save null token');
-        return;
+      this.log('Fetching user profile from LinkedIn API');
+
+      // Make API request to get LinkedIn profile
+      const response = await this.get({
+        path: '/me',
+        query: {
+          projection: '(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`LinkedIn API error: ${response.status}`);
       }
 
-      // Save token to session
-      const sessionId = this.getSessionId();
-      if (!sessionId) {
-        this.error('Cannot save token: No session ID');
-        return;
-      }
-
-      // @ts-expect-error: Accessing private method from parent class
-      this._onSaveToken(token);
-
-      // Also emit a save event for OAuth2App to handle
-      this.emit('save');
-
-      this.log(`Token saved to session ${sessionId}`);
+      this.log('Successfully fetched profile from LinkedIn API');
+      return response.data as LinkedInProfileResponse;
     } catch (error) {
-      this.error('Error saving token:', error);
+      this.error('Error fetching LinkedIn profile:', error);
       throw error;
     }
   }
 
   /**
-   * Get the current session ID
-   * @returns The current session ID
+   * Get user's email address from LinkedIn
+   * Using the id_token (preferred) or the LinkedIn API
    */
-  getSessionId(): string {
-    // @ts-expect-error: Accessing protected property from parent class
-    return this._sessionId;
+  async getUserEmail(): Promise<string> {
+    this.log('Getting LinkedIn user email');
+
+    // First try to get email from id_token (OpenID Connect)
+    const token = this.getToken();
+    if (token && token.id_token) {
+      try {
+        const jwtPayload = this.parseJwtToken(token.id_token);
+        if (jwtPayload && jwtPayload.email) {
+          this.log('Successfully extracted email from id_token');
+          return jwtPayload.email;
+        }
+      } catch (error) {
+        this.error('Error extracting email from id_token:', error);
+      }
+    }
+
+    // Fallback to LinkedIn API for email
+    try {
+      this.log('Fetching user email from LinkedIn API');
+
+      // Make API request to get LinkedIn email
+      const response = await this.get({
+        path: '/emailAddress',
+        query: {
+          q: 'members',
+          projection: '(elements*(handle~))',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`LinkedIn API error: ${response.status}`);
+      }
+
+      const data = response.data as LinkedInEmailResponse;
+
+      if (data.elements && data.elements.length > 0) {
+        // Try to find primary email address
+        for (const element of data.elements) {
+          // Handle different API response formats
+          const emailAddress = element['handle~']?.emailAddress || element.handle?.emailAddress;
+          if (emailAddress) {
+            this.log('Successfully fetched email from LinkedIn API');
+            return emailAddress;
+          }
+        }
+      }
+
+      throw new Error('No email found in LinkedIn API response');
+    } catch (error) {
+      this.error('Error fetching LinkedIn email:', error);
+      throw error;
+    }
   }
 
   /**
-   * Decode a JWT token
-   * @param token JWT token string to decode
-   * @returns Decoded token payload or null if invalid
+   * Parse a JWT token
+   * @param token JWT token to parse
+   * @returns The parsed JWT payload
    */
-  private decodeJwt(token: string): any | null {
+  private parseJwtToken(token: string): JwtPayload {
     try {
-      // Split the token into parts
+      this.log('Parsing JWT token');
+
+      // JWT tokens have three parts: header.payload.signature
       const parts = token.split('.');
       if (parts.length !== 3) {
-        console.error('[LinkedInOAuth2Client] Invalid JWT token format');
-        return null;
+        throw new Error('Invalid JWT token format');
       }
 
-      // Decode the payload (middle part)
+      // Decode the base64-encoded payload (second part)
       const payload = parts[1];
-      const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        Buffer.from(base64, 'base64')
-          .toString()
-          .split('')
-          .map((c) => {
-            return `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`;
-          })
-          .join(''),
-      );
+      const normalizedPayload = payload
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
 
-      return JSON.parse(jsonPayload);
+      const decodedPayload = base64Decode(normalizedPayload);
+
+      // Parse JSON
+      const jwtPayload = JSON.parse(decodedPayload) as JwtPayload;
+
+      this.log('Successfully parsed JWT token');
+      return jwtPayload;
     } catch (error) {
-      console.error('[LinkedInOAuth2Client] Failed to decode JWT token:', error);
-      return null;
+      this.error('Error parsing JWT token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Post a message to LinkedIn
+   * @param text The text content to post
+   * @param visibility The visibility setting for the post (PUBLIC, CONNECTIONS, CONTAINER)
+   * @returns API response object
+   */
+  async postMessage(text: string, visibility: string = 'CONNECTIONS'): Promise<ApiResponse> {
+    this.log('Posting message to LinkedIn');
+
+    try {
+      // First get the user's ID
+      const profile = await this.getUserProfile();
+      const userId = profile.id;
+
+      if (!userId) {
+        throw new Error('Could not determine user ID for post');
+      }
+
+      this.log(`Creating post for user ${userId} with visibility ${visibility}`);
+
+      // Create the post
+      const response = await this.post({
+        path: '/ugcPosts',
+        headers: {
+          'X-Restli-Protocol-Version': '2.0.0',
+          'Content-Type': 'application/json',
+        },
+        body: {
+          author: `urn:li:person:${userId}`,
+          lifecycleState: 'PUBLISHED',
+          specificContent: {
+            'com.linkedin.ugc.ShareContent': {
+              shareCommentary: {
+                text: text,
+              },
+              shareMediaCategory: 'NONE',
+            },
+          },
+          visibility: {
+            'com.linkedin.ugc.MemberNetworkVisibility': visibility,
+          },
+        },
+      });
+
+      if (!response.ok) {
+        this.error('LinkedIn post failed:', response.status, response.data);
+      } else {
+        this.log('Successfully posted message to LinkedIn');
+      }
+
+      return response;
+    } catch (error) {
+      this.error('Error posting message to LinkedIn:', error);
+      throw error;
     }
   }
 }

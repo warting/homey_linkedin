@@ -231,7 +231,20 @@
           "template": "add_devices"
         }
       ],
-      "id": "linkedin-user"
+      "id": "linkedin-user",
+      "settings": [
+        {
+          "id": "oauth2_token",
+          "type": "password",
+          "label": {
+            "en": "OAuth2 Token"
+          },
+          "value": "",
+          "hint": {
+            "en": "LinkedIn authentication token. This is managed automatically."
+          }
+        }
+      ]
     }
   ],
   "capabilities": {

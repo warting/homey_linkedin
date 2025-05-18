@@ -1,4 +1,3 @@
-import Homey from 'homey';
 import { OAuth2Device } from 'homey-oauth2app';
 import LinkedInOAuth2Client from '../../lib/OAuth/LinkedInOAuth2Client';
 
@@ -36,36 +35,9 @@ class LinkedInUserDevice extends OAuth2Device {
 
     // Ensure we have a valid OAuth2 client
     try {
-      // Get the OAuth2 client
-      const oAuth2Client = this.getOAuth2Client<LinkedInOAuth2Client>();
-
-      // Check if we have a valid token
-      const token = oAuth2Client.getToken();
-      if (token && token.access_token) {
-        this.log('Device has valid OAuth2 token');
-
-        // Store the token in the device storage for persistence
-        await this.storeToken(token);
-      } else {
-        this.log('Device has no valid token, attempting to restore from storage');
-
-        // Try to restore the token from device storage
-        const storedToken = await this.getStoredToken();
-        if (storedToken) {
-          this.log('Restoring token from device storage');
-          oAuth2Client.setToken(storedToken);
-
-          // Verify token was restored
-          const verifyToken = oAuth2Client.getToken();
-          if (verifyToken && verifyToken.access_token) {
-            this.log('Successfully restored token from device storage');
-          } else {
-            this.error('Failed to restore token from device storage');
-          }
-        } else {
-          this.error('No stored token found in device storage');
-        }
-      }
+      // Load token from driver settings if available
+      const oAuth2Client = this.getOAuth2Client();
+      this.log('Device has valid OAuth2 client, ready for use');
     } catch (error) {
       this.error('Error initializing OAuth2 client:', error);
     }
@@ -81,32 +53,6 @@ class LinkedInUserDevice extends OAuth2Device {
   }
 
   /**
-   * Store OAuth2 token in device storage for persistence
-   */
-  async storeToken(token: any): Promise<void> {
-    try {
-      this.log('Storing token in device storage');
-      await this.setStoreValue('oauth2_token', token);
-      this.log('Token stored successfully in device storage');
-    } catch (error) {
-      this.error('Error storing token in device storage:', error);
-    }
-  }
-
-  /**
-   * Get OAuth2 token from device storage
-   */
-  async getStoredToken(): Promise<any> {
-    try {
-      this.log('Getting token from device storage');
-      return await this.getStoreValue('oauth2_token');
-    } catch (error) {
-      this.error('Error getting stored token from device storage:', error);
-      return null;
-    }
-  }
-
-  /**
    * Called when the device is deleted
    */
   async onOAuth2Deleted() {
@@ -114,9 +60,8 @@ class LinkedInUserDevice extends OAuth2Device {
 
     // Clean up device storage
     try {
-      await this.unsetStoreValue('oauth2_token');
       await this.unsetStoreValue('lastPostTime');
-      this.log('Removed stored token and data');
+      this.log('Removed stored data');
     } catch (error) {
       this.error('Error cleaning up device storage:', error);
     }
@@ -129,7 +74,13 @@ class LinkedInUserDevice extends OAuth2Device {
     this.log('Posting text update to LinkedIn');
 
     try {
-      const client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
+      // Cast the OAuth2Client to the specific LinkedInOAuth2Client type
+      const client = this.getOAuth2Client() as LinkedInOAuth2Client;
+
+      if (!client.postMessage) {
+        throw new Error('LinkedIn client does not have postMessage method');
+      }
+
       const result = await client.postMessage(text, visibility);
 
       if (result.ok) {
@@ -171,8 +122,13 @@ class LinkedInUserDevice extends OAuth2Device {
 
     try {
       // For now, we just use the basic post message implementation
-      // In the future, this should be updated to use the proper LinkedIn API for sharing links
-      const client = this.getOAuth2Client() as unknown as LinkedInOAuth2Client;
+      // Cast the OAuth2Client to the specific LinkedInOAuth2Client type
+      const client = this.getOAuth2Client() as LinkedInOAuth2Client;
+
+      if (!client.postMessage) {
+        throw new Error('LinkedIn client does not have postMessage method');
+      }
+
       const fullText = `${text}\n\n${title}\n${description}\n${linkUrl}`;
       const result = await client.postMessage(fullText, visibility);
 
