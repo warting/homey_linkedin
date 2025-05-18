@@ -6,16 +6,16 @@ class LinkedInUserDevice extends OAuth2Device {
   private lastPostTime: Date | null = null;
 
   /**
-   * onOAuth2Init is called when the device is initialized.
+   * This method is called when the device is initialized with OAuth2
+   * This is where you should set up device capabilities and handle the OAuth2 client
    */
-  async onOAuth2Init() {
-    this.log('LinkedIn User Device has been initialized');
+  async onOAuth2Init(): Promise<void> {
+    this.log('LinkedIn User Device is being initialized with OAuth2');
 
-    // Get the device settings
+    // Get the device settings and store data
     const settings = this.getSettings();
     this.log('Device settings:', settings);
 
-    // Get the stored values
     const store = this.getStore();
     this.log('Device store contains profile ID:', store.profileId);
 
@@ -33,28 +33,28 @@ class LinkedInUserDevice extends OAuth2Device {
       await this.setCapabilityValue('last_post_time', this.lastPostTime.toISOString()).catch(this.error);
     }
 
-    // According to Homey docs, this.oAuth2Client should already be available here
+    // Verify OAuth2 client availability
     if (this.oAuth2Client) {
-      this.log('Device has valid OAuth2 client, ready for use');
+      this.log('OAuth2 client is available');
     } else {
-      this.error('OAuth2 client not available - please check app credentials');
+      this.error('OAuth2 client is not available, device may not function correctly');
     }
 
-    this.log('LinkedIn User Device has been initialized with capabilities');
+    this.log('LinkedIn User Device has been initialized with OAuth2');
   }
 
   /**
-   * onOAuth2Added is called when the device is added.
+   * This method is called when the device is added
    */
-  async onOAuth2Added() {
+  async onOAuth2Added(): Promise<void> {
     this.log('LinkedIn User Device has been added');
   }
 
   /**
-   * Called when the device is deleted
+   * This method is called when the device is deleted
    */
-  async onOAuth2Deleted() {
-    this.log('Device deleted');
+  async onOAuth2Deleted(): Promise<void> {
+    this.log('LinkedIn User Device is being deleted');
 
     // Clean up device storage
     try {
@@ -72,15 +72,11 @@ class LinkedInUserDevice extends OAuth2Device {
     this.log('Posting text update to LinkedIn');
 
     try {
-      // Access client directly as documented in Homey docs
-      if (!this.oAuth2Client) {
-        throw new Error('LinkedIn client not available');
-      }
-
+      // Get the OAuth2Client instance from the device
       const client = this.oAuth2Client as LinkedInOAuth2Client;
 
-      if (typeof client.postMessage !== 'function') {
-        throw new Error('LinkedIn client does not have postMessage method');
+      if (!client) {
+        throw new Error('LinkedIn OAuth2 client not available');
       }
 
       const result = await client.postMessage(text, visibility);
@@ -123,15 +119,11 @@ class LinkedInUserDevice extends OAuth2Device {
     this.log('Posting link update to LinkedIn');
 
     try {
-      // Access client directly as documented in Homey docs
-      if (!this.oAuth2Client) {
-        throw new Error('LinkedIn client not available');
-      }
-
+      // Get the OAuth2Client instance from the device
       const client = this.oAuth2Client as LinkedInOAuth2Client;
 
-      if (typeof client.postMessage !== 'function') {
-        throw new Error('LinkedIn client does not have postMessage method');
+      if (!client) {
+        throw new Error('LinkedIn OAuth2 client not available');
       }
 
       const fullText = `${text}\n\n${title}\n${description}\n${linkUrl}`;

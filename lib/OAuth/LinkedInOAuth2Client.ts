@@ -2,7 +2,6 @@ import Homey from 'homey';
 import { OAuth2Client, OAuth2Token as BaseOAuth2Token, ApiResponse } from 'homey-oauth2app';
 
 // Extend the OAuth2Token interface to include id_token
-
 interface OAuth2Token extends BaseOAuth2Token {
   id_token?: string;
 }
@@ -68,14 +67,6 @@ interface LinkedInEmailResponse {
 }
 
 /**
- * Base64 decode function that works in Node.js (polyfill for atob)
- */
-function base64Decode(str: string): string {
-  // In Node.js environment, use Buffer
-  return Buffer.from(str, 'base64').toString('utf-8');
-}
-
-/**
  * LinkedIn OAuth2 Client
  *
  * This client handles the OAuth2 flow for LinkedIn API integration
@@ -93,21 +84,18 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     'w_member_social', // Share content on your behalf
   ];
 
-  // Temporary properties to hold runtime settings from the app
+  // Static credentials, can be set at runtime
   private static _clientId: string = '';
   private static _clientSecret: string = '';
   private static _redirectUrl: string = '';
 
-  // Reference to the driver for settings access
-  private driver: any = null;
-
   // Get credentials from app settings only
   static get CLIENT_ID(): string {
-    return LinkedInOAuth2Client._clientId || ''; // Return empty string instead of undefined
+    return LinkedInOAuth2Client._clientId || '';
   }
 
   static get CLIENT_SECRET(): string {
-    return LinkedInOAuth2Client._clientSecret || ''; // Return empty string instead of undefined
+    return LinkedInOAuth2Client._clientSecret || '';
   }
 
   // Access the redirect URL through getter/setter
@@ -120,56 +108,20 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     LinkedInOAuth2Client._redirectUrl = url;
   }
 
-  // Constructor to override parent with safer initialization
-  constructor(options: any) {
-    // Ensure options has clientId and clientSecret properties
-    const safeOptions = {
-      ...options,
-      clientId: LinkedInOAuth2Client.CLIENT_ID || options.clientId || 'placeholder-id',
-      clientSecret: LinkedInOAuth2Client.CLIENT_SECRET || options.clientSecret || 'placeholder-secret',
-      redirectUrl: LinkedInOAuth2Client.REDIRECT_URL || options.redirectUrl,
-    };
-
-    super(safeOptions);
-
-    // Store reference to driver if provided
-    if (options.driver) {
-      this.driver = options.driver;
-    }
-  }
-
   // Methods to set credentials at runtime (to be called from the app)
   static setClientId(clientId: string): void {
     if (clientId && clientId.trim() !== '') {
-      // Just set the ID silently
       LinkedInOAuth2Client._clientId = clientId;
     } else {
-      // Just set to empty string silently
       LinkedInOAuth2Client._clientId = '';
     }
   }
 
   static setClientSecret(clientSecret: string): void {
     if (clientSecret && clientSecret.trim() !== '') {
-      // Just set the secret silently
       LinkedInOAuth2Client._clientSecret = clientSecret;
     } else {
-      // Just set to empty string silently
       LinkedInOAuth2Client._clientSecret = '';
-    }
-  }
-
-  // Set the callback URL using Homey's OAuth2 callback
-  static initRedirectUrl(): void {
-    try {
-      console.log('The redirect URL should be set by the app during initialization');
-      console.log('No default redirect URL will be used');
-
-      // We'll leave the redirect URL empty
-      // The app will handle setting this URL from the Homey Cloud API
-    } catch (error) {
-      console.error('Failed to initialize redirect URL information:', error);
-      // Don't set any value - the app will handle this
     }
   }
 
@@ -178,12 +130,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
    */
   async onInit(): Promise<void> {
     this.log('LinkedIn OAuth2Client initialized');
-
-    // Ensure we have a valid redirect URL
-    if (!LinkedInOAuth2Client.REDIRECT_URL) {
-      this.log('Setting up OAuth2 callback URL');
-      LinkedInOAuth2Client.initRedirectUrl();
-    }
 
     // Log authentication status but hide full credentials for security
     if (LinkedInOAuth2Client.CLIENT_ID) {
@@ -205,150 +151,33 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     } else {
       this.error('OAuth2 redirect URL is not set!');
     }
-
-    // Try to load token from driver settings
-    await this.loadTokenFromSettings();
-  }
-
-  /**
-   * Load token from driver settings
-   */
-  private async loadTokenFromSettings(): Promise<void> {
-    try {
-      if (!this.driver) {
-        this.log('No driver reference available to load token from settings');
-        return;
-      }
-
-      // Get token from driver settings
-      const tokenStr = await this.driver.getSetting('oauth2_token');
-      if (!tokenStr) {
-        this.log('No token found in driver settings');
-        return;
-      }
-
-      // Parse token from string
-      try {
-        const token = JSON.parse(tokenStr);
-        this.log('Successfully loaded token from driver settings');
-
-        // Set token in client
-        // @ts-expect-error: Setting protected property from parent class
-        this._token = token;
-
-        this.log('Token loaded from settings successfully');
-      } catch (parseError) {
-        this.error('Error parsing token from settings:', parseError);
-      }
-    } catch (error) {
-      this.error('Error loading token from settings:', error);
-    }
-  }
-
-  /**
-   * Save token to driver settings
-   */
-  private async saveTokenToSettings(token: OAuth2Token): Promise<void> {
-    try {
-      if (!this.driver) {
-        this.log('No driver reference available to save token to settings');
-        return;
-      }
-
-      // Stringify token for storage
-      const tokenStr = JSON.stringify(token);
-
-      // Save token to driver settings
-      await this.driver.setSettings({
-        oauth2_token: tokenStr
-      });
-
-      this.log('Token saved to driver settings successfully');
-    } catch (error) {
-      this.error('Error saving token to settings:', error);
-    }
   }
 
   /**
    * Override the getTokenByCode method to handle LinkedIn's token response
    */
-  async getTokenByCode(code: string | any): Promise<OAuth2Token> {
-    this.log('Exchanging authorization code for access token...');
+  async onGetTokenByCode(args: { code: string }): Promise<OAuth2Token> {
+    this.log('Getting token by authorization code');
 
-    // Extract the actual code value from the object or string
-    let codeStr: string = '';
-    if (typeof code === 'string') {
-      codeStr = code;
-    } else if (code && typeof code === 'object') {
-      // The OAuth2 callback might pass an object with the code as a property
-      if (code.code && typeof code.code === 'string') {
-        codeStr = code.code;
-      } else if (code.url && typeof code.url === 'string') {
-        // Try to extract code from URL parameter
-        try {
-          const url = new URL(code.url);
-          const params = new URLSearchParams(url.search);
-          const codeParam = params.get('code');
-          if (codeParam) {
-            codeStr = codeParam;
-          } else {
-            this.error('Could not find code parameter in URL:', code.url);
-            codeStr = String(code);
-          }
-        } catch (error) {
-          this.error('Failed to parse URL:', error);
-          codeStr = String(code);
-        }
-      } else {
-        // Fallback: stringify the first field we can find
-        let foundStringField = false;
-        for (const key in code) {
-          if (typeof code[key] === 'string') {
-            codeStr = code[key];
-            this.log(`Using field '${key}' as code value`);
-            foundStringField = true;
-            break;
-          }
-        }
-        if (!foundStringField) {
-          codeStr = JSON.stringify(code);
-        }
-      }
-    } else {
-      codeStr = String(code || '');
-    }
-
-    // Make sure we have a valid code string
-    if (!codeStr || codeStr === 'undefined' || codeStr === '[object Object]') {
-      this.error('Invalid authorization code:', code);
-      throw new Error('Invalid authorization code. Please try again.');
+    const code = args.code;
+    if (!code) {
+      throw new Error('Invalid authorization code');
     }
 
     // Log the code preview (first few characters) for debugging
-    const codePreview = codeStr.length > 5 ? `${codeStr.substring(0, 5)}...` : codeStr;
+    const codePreview = code.length > 5 ? `${code.substring(0, 5)}...` : code;
     this.log(`Authorization code: ${codePreview}`);
-    this.log(`Using TOKEN_URL: ${LinkedInOAuth2Client.TOKEN_URL}`);
-
-    // Safely get a client ID preview
-    const clientId = LinkedInOAuth2Client.CLIENT_ID;
-    const clientIdPreview = clientId.length > 5 ? `${clientId.substring(0, 5)}...` : clientId;
-    this.log(`Using client ID: ${clientIdPreview}`);
-
-    this.log(`Using redirect URI: ${LinkedInOAuth2Client.REDIRECT_URL}`);
 
     try {
       // Use URL encoded form data which LinkedIn requires
       const body = new URLSearchParams();
       body.append('grant_type', 'authorization_code');
-      body.append('code', codeStr);
+      body.append('code', code);
       body.append('client_id', LinkedInOAuth2Client.CLIENT_ID);
       body.append('client_secret', LinkedInOAuth2Client.CLIENT_SECRET);
       body.append('redirect_uri', LinkedInOAuth2Client.REDIRECT_URL);
 
       this.log(`Request body params: grant_type=authorization_code&code=${codePreview}`);
-
-      this.log(`Sending token request to: ${LinkedInOAuth2Client.TOKEN_URL}`);
-      this.log(`Full request body: ${body.toString()}`);
 
       const response = await fetch(LinkedInOAuth2Client.TOKEN_URL, {
         method: 'POST',
@@ -361,29 +190,15 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
       this.log(`Token response status: ${response.status}`);
 
-      let responseText: string;
-      try {
-        responseText = await response.text();
-        this.log(`Token response body: ${responseText}`);
-      } catch (err) {
-        this.error('Error reading response body:', err);
-        responseText = '';
-      }
-
+      const responseText = await response.text();
       if (!response.ok) {
         this.error('Token request failed:', response.status, responseText);
         throw new Error(`Failed to exchange code for token: ${response.status} ${responseText}`);
       }
 
-      // Try to parse the response as JSON
-      let tokenResponse: LinkedInTokenResponse;
-      try {
-        tokenResponse = JSON.parse(responseText) as LinkedInTokenResponse;
-        this.log('Successfully parsed token response');
-      } catch (err) {
-        this.error('Error parsing token response as JSON:', err);
-        throw new Error(`Invalid token response format: ${responseText}`);
-      }
+      // Parse the response as JSON
+      const tokenResponse = JSON.parse(responseText) as LinkedInTokenResponse;
+      this.log('Successfully parsed token response');
 
       // Check that we have a valid access token
       if (!tokenResponse.access_token) {
@@ -402,9 +217,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         id_token: tokenResponse.id_token,
       };
 
-      // Save token to driver settings
-      await this.saveTokenToSettings(token);
-
       return token;
     } catch (error) {
       this.error('Error exchanging code for token:', error);
@@ -413,49 +225,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   }
 
   /**
-   * Get the current OAuth2 token
-   * @returns The current OAuth2 token
-   */
-  getToken(): OAuth2Token {
-    // Access the token from the OAuth2Client parent class
-    // @ts-expect-error: Accessing protected property from parent class
-    return this._token;
-  }
-
-  /**
-   * Set the current OAuth2 token directly
-   * Only use this method for debugging or special cases
-   * @param token Token to set
-   */
-  setToken(token: OAuth2Token): void {
-    if (!token) {
-      this.error('[LinkedInOAuth2Client] Cannot set null token');
-      return;
-    }
-
-    this.log('[LinkedInOAuth2Client] Setting token');
-
-    // Set the token to the protected property
-    // @ts-expect-error: Setting protected property from parent class
-    this._token = token;
-
-    // Save token to driver settings
-    this.saveTokenToSettings(token).catch(error =>
-      this.error('Error saving token to settings:', error)
-    );
-
-    // Verify token was set
-    const verifyToken = this.getToken();
-    if (verifyToken && verifyToken.access_token) {
-      this.log('[LinkedInOAuth2Client] Token successfully set');
-    } else {
-      this.error('[LinkedInOAuth2Client] Failed to set token');
-    }
-  }
-
-  /**
    * Get user profile information from LinkedIn
-   * This uses OpenID Connect id_token if available, or the LinkedIn API otherwise
    */
   async getUserProfile(): Promise<LinkedInProfileResponse> {
     this.log('Getting LinkedIn user profile');
@@ -511,7 +281,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   /**
    * Get user's email address from LinkedIn
-   * Using the id_token (preferred) or the LinkedIn API
    */
   async getUserEmail(): Promise<string> {
     this.log('Getting LinkedIn user email');
@@ -547,7 +316,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         throw new Error(`LinkedIn API error: ${response.status}`);
       }
 
-      const data = response.data as LinkedInEmailResponse;
+      const data = response.data;
 
       if (data.elements && data.elements.length > 0) {
         // Try to find primary email address
@@ -570,8 +339,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   /**
    * Parse a JWT token
-   * @param token JWT token to parse
-   * @returns The parsed JWT payload
    */
   private parseJwtToken(token: string): JwtPayload {
     try {
@@ -589,7 +356,7 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         .replace(/-/g, '+')
         .replace(/_/g, '/');
 
-      const decodedPayload = base64Decode(normalizedPayload);
+      const decodedPayload = Buffer.from(normalizedPayload, 'base64').toString('utf-8');
 
       // Parse JSON
       const jwtPayload = JSON.parse(decodedPayload) as JwtPayload;
@@ -604,9 +371,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
 
   /**
    * Post a message to LinkedIn
-   * @param text The text content to post
-   * @param visibility The visibility setting for the post (PUBLIC, CONNECTIONS, CONTAINER)
-   * @returns API response object
    */
   async postMessage(text: string, visibility: string = 'CONNECTIONS'): Promise<ApiResponse> {
     this.log('Posting message to LinkedIn');
