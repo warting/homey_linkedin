@@ -1,11 +1,18 @@
 /**
- * OAuth2Error class for handling OAuth2-specific errors
+ * OAuth2Error
+ *
+ * @extends Error
  */
 export class OAuth2Error extends Error {
-  constructor(message: string, options?: { statusCode?: number; response?: any });
+  /**
+   * @param {string} message
+   */
+  constructor(message: string);
 
-  readonly statusCode?: number;
-  readonly response?: any;
+  /**
+   * @returns {string}
+   */
+  toString(): string;
 }
 
 export default OAuth2Error;
