@@ -1,21 +1,17 @@
 /**
- * Utility functions for the OAuth2 library
+ * OAuth2Util
  */
 export class OAuth2Util {
   /**
-   * Generates a random string to use as a session identifier
+   * @returns {string}
    */
-  static getRandomId(length?: number): string;
+  static getRandomId(): string;
 
   /**
-   * Converts an object to a URL query string
+   * @param {number} [delay=1000]
+   * @returns {Promise<void>}
    */
-  static objectToQueryString(obj: Record<string, any>): string;
-
-  /**
-   * Checks if a token is expired
-   */
-  static isTokenExpired(token: { expires_in?: number; timestamp?: number }): boolean;
+  static async wait(delay?: number): Promise<void>;
 }
 
 export default OAuth2Util;
