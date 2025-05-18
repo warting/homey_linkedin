@@ -5,9 +5,6 @@ class LinkedInUserDevice extends OAuth2Device {
   // Declare class properties
   private lastPostTime: Date | null = null;
 
-  // Store a reference to the client - we access this directly from oAuth2Client property
-  private linkedInClient: LinkedInOAuth2Client | null = null;
-
   /**
    * onOAuth2Init is called when the device is initialized.
    */
@@ -36,19 +33,11 @@ class LinkedInUserDevice extends OAuth2Device {
       await this.setCapabilityValue('last_post_time', this.lastPostTime.toISOString()).catch(this.error);
     }
 
-    // Ensure we have a valid OAuth2 client by accessing the oAuth2Client property directly
-    try {
-      // The oAuth2Client property is set by the OAuth2App framework
-      // @ts-expect-error: The typing for homey-oauth2app doesn't include this property
-      this.linkedInClient = this.oAuth2Client;
-
-      if (!this.linkedInClient) {
-        throw new Error('OAuth2 client not available - please check app credentials');
-      }
-
+    // According to Homey docs, this.oAuth2Client should already be available here
+    if (this.oAuth2Client) {
       this.log('Device has valid OAuth2 client, ready for use');
-    } catch (error) {
-      this.error('Error initializing OAuth2 client:', error);
+    } else {
+      this.error('OAuth2 client not available - please check app credentials');
     }
 
     this.log('LinkedIn User Device has been initialized with capabilities');
@@ -77,32 +66,18 @@ class LinkedInUserDevice extends OAuth2Device {
   }
 
   /**
-   * Get the OAuth2 client associated with this device
-   */
-  getLinkedInClient(): LinkedInOAuth2Client {
-    // If we don't have the client stored yet, get it from the oAuth2Client property
-    // @ts-expect-error: The typing for homey-oauth2app doesn't include this property
-    if (!this.linkedInClient && this.oAuth2Client) {
-      // @ts-expect-error: The typing for homey-oauth2app doesn't include this property
-      this.linkedInClient = this.oAuth2Client;
-    }
-
-    if (!this.linkedInClient) {
-      throw new Error('LinkedIn OAuth2 client not available');
-    }
-
-    return this.linkedInClient;
-  }
-
-  /**
    * Post a text update to LinkedIn
    */
   async postTextUpdate({ text, visibility = 'CONNECTIONS' }: { text: string, visibility?: string }): Promise<boolean> {
     this.log('Posting text update to LinkedIn');
 
     try {
-      // Get the client with our helper method that doesn't use getOAuth2Client
-      const client = this.getLinkedInClient();
+      // Access client directly as documented in Homey docs
+      if (!this.oAuth2Client) {
+        throw new Error('LinkedIn client not available');
+      }
+
+      const client = this.oAuth2Client as LinkedInOAuth2Client;
 
       if (typeof client.postMessage !== 'function') {
         throw new Error('LinkedIn client does not have postMessage method');
@@ -148,8 +123,12 @@ class LinkedInUserDevice extends OAuth2Device {
     this.log('Posting link update to LinkedIn');
 
     try {
-      // Get the client with our helper method that doesn't use getOAuth2Client
-      const client = this.getLinkedInClient();
+      // Access client directly as documented in Homey docs
+      if (!this.oAuth2Client) {
+        throw new Error('LinkedIn client not available');
+      }
+
+      const client = this.oAuth2Client as LinkedInOAuth2Client;
 
       if (typeof client.postMessage !== 'function') {
         throw new Error('LinkedIn client does not have postMessage method');

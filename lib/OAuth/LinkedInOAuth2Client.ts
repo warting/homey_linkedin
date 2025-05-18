@@ -384,7 +384,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
         this.error('Error parsing token response as JSON:', err);
         throw new Error(`Invalid token response format: ${responseText}`);
       }
-      this.log('Successfully parsed token response');
 
       // Check that we have a valid access token
       if (!tokenResponse.access_token) {
