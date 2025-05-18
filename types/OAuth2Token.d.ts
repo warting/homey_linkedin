@@ -1,8 +1,21 @@
-export interface OAuth2Token {
-  access_token: string;
-  refresh_token?: string;
-  token_type?: string;
-  expires_in?: number;
+/**
+ * OAuth2Token
+ */
+export class OAuth2Token {
+  /**
+   * @param {object} args
+   */
+  constructor(args: object);
+
+  /**
+   * @returns {boolean}
+   */
+  isRefreshable(): boolean;
+
+  /**
+   * @returns {Object}
+   */
+  toJSON(): Object;
 }
 
 export default OAuth2Token;
