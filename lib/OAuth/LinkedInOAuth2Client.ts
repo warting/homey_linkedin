@@ -19,8 +19,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     'w_member_social', // Share content on your behalf
   ];
 
-  static REDIRECT_URL: string;
-
   // The redirect URL will be set dynamically by the app in app.ts
 
   /**
