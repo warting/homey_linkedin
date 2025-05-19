@@ -1,5 +1,4 @@
 import { OAuth2Client, OAuth2Error } from 'homey-oauth2app';
-import console from 'node:console';
 
 /**
  * LinkedIn OAuth2 Client
@@ -20,29 +19,18 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
     'w_member_social', // Share content on your behalf
   ];
 
-  onInit(): Promise<void> {
+  static REDIRECT_URL: string;
 
-    try {
-      // Set up the OAuth2 callback URL via Homey Cloud
-      // Use type assertion to access the homey property
-      const oauth2CallbackUrl = (this as any).homey.cloud.createOAuth2Callback(
-        LinkedInOAuth2Client.AUTHORIZATION_URL,
-        LinkedInOAuth2Client.TOKEN_URL,
-      );
+  // The redirect URL will be set dynamically by the app in app.ts
 
-      // Make sure to set the redirect URL for the OAuth2 client
-      (LinkedInOAuth2Client as any).REDIRECT_URL = oauth2CallbackUrl;
-
-      console.log(`OAuth2 callback URL configured: ${oauth2CallbackUrl}`);
-    } catch (error) {
-      console.error('Error setting up OAuth2 credentials:', error);
-      throw error; // Re-throw the error to prevent the app from starting with invalid credentials
-    }
-
+  /**
+   * Initialize the OAuth2 client
+   */
+  async onInit(): Promise<void> {
+    // Use type assertion for log method
+    (this as any).log('LinkedIn OAuth2Client initialized');
     return super.onInit();
   }
-
-  // The redirect URL will be set dynamically by the app
 
   /**
    * Handle API responses that are not OK
