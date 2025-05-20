@@ -35,8 +35,13 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   /**
    * Handle API responses that are not OK
    */
-  async onHandleNotOK({ body, status }: { body: any; status: number }): Promise<never> {
-    throw new OAuth2Error(body?.error || `LinkedIn API error (${status})`);
+  async onHandleNotOK({ body, status, headers }: { body: any; status: number; headers: any }): Promise<never> {
+    // Log the full error details for debugging
+    (this as any).error(`LinkedIn API error: Status ${status}`);
+    (this as any).error('Headers:', headers);
+    (this as any).error('Body:', body);
+
+    throw new OAuth2Error(body?.error?.message || `LinkedIn API error (${status}): ${JSON.stringify(body)}`);
   }
 
   /**
@@ -48,6 +53,9 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
       path: '/me',
       query: {
         projection: '(id,localizedFirstName,localizedLastName,profilePicture(displayImage~:playableStreams))',
+      },
+      headers: {
+        'X-Restli-Protocol-Version': '2.0.0',
       },
     });
   }
