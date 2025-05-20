@@ -1,4 +1,5 @@
 import { OAuth2Client, OAuth2Error } from 'homey-oauth2app';
+import Homey from 'homey';
 
 /**
  * LinkedIn OAuth2 Client
@@ -10,8 +11,9 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
   static TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken';
   static AUTHORIZATION_URL = 'https://www.linkedin.com/oauth/v2/authorization';
 
-  static CLIENT_ID = '779l2eheibpxgq'
-  static CLIENT_SECRET = 'WPL_AP1.fDt8mFOxZcQsYaaJ.QhBl4g==';
+  // Use environment variables instead of hardcoded values
+  static CLIENT_ID = Homey.env.CLIENT_ID;
+  static CLIENT_SECRET = Homey.env.CLIENT_SECRET;
   static SCOPES = [
     'openid', // Use your name and photo
     'profile', // Use your name and photo

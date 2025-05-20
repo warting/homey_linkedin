@@ -29,7 +29,7 @@ The app will follow Homey's recommended architecture:
 
 ### 2. LinkedIn API Integration
 
-- [ ] Implement OAuth2 authentication flow for LinkedIn
+- [ ] Implement OAuth2 authentication flow for LinkedIn (in progress)
 - [ ] Create service classes for LinkedIn API communication
 - [ ] Implement core posting functionality (text, media, URL sharing)
 - [ ] Add error handling and rate limit management
@@ -38,8 +38,8 @@ The app will follow Homey's recommended architecture:
 
 Create drivers for different LinkedIn entity types using `homey app driver create`:
 
-- [ ] **LinkedIn User Driver**: Represent a personal LinkedIn account
-  - Authentication and user profile information
+- [ ] **LinkedIn User Driver**: Represent a personal LinkedIn account (in progress)
+  - Authentication and user profile information (in progress)
   - Post status updates on behalf of a user
 
 - [ ] **LinkedIn Page Driver**: Represent a LinkedIn company page
@@ -99,10 +99,10 @@ The app will use LinkedIn's REST APIs:
 - Share API for posting content
 
 Required OAuth 2.0 scopes:
-- r_liteprofile
-- r_emailaddress
+- openid
+- profile
+- email
 - w_member_social
-- w_organization_social
 
 ### Data Models
 
@@ -125,13 +125,11 @@ Required OAuth 2.0 scopes:
 ### Key Implementation Notes
 
 1. **Authentication Storage**:
-   - Store OAuth tokens securely
-   - Implement token refresh mechanism
-   - Handle revoked access gracefully
+   - Store client id and client secrets in homey apps settings (hardcoded until POC works)
+   - Use homey's app homey-oauth2app to do the heavy lifting for a Homey App that talks to any OAuth2 Web API
 
 2. **Post Creation**:
    - Support various content types
-   - Handle media uploads
    - Provide posting status and feedback
 
 3. **Error Handling**:
@@ -182,75 +180,5 @@ As a GitHub Copilot agent working on this project, follow these guidelines:
 
 - [Homey Developer Documentation](https://developer.homey.app/)
 - [LinkedIn REST API Documentation](https://developer.linkedin.com/docs)
-- [LinkedIn Marketing Developer Platform](https://www.linkedin.com/developers/apps)
-- [OAuth 2.0 Documentation](https://oauth.net/2/)
+- [homey-oauth2app](https://athombv.github.io/node-homey-oauth2app/)
 
-## Timeline
-
-1. Basic setup and LinkedIn API integration (2 days)
-2. Driver development (2 days)
-3. Flow card implementation (2 days)
-4. Testing and refinement (2 days)
-5. Documentation and submission (1 day)
-
-Total estimated time: 9 days of development work.
-
-## UI/UX and Visual Improvements
-
-### 8. Look and Feel Enhancements
-
-- [ ] **Image Assets Refinement**:
-  - Optimize all app icons for different device resolutions
-  - Create professional device icons for each driver type
-  - Design custom flow card icons that represent each action clearly
-  - Use ImageMagick for image processing and optimization
-
-- [ ] **Driver Visualization**:
-  - Create custom capabilities with visual indicators for connection status
-  - Design visual feedback for post success/failure
-  - Add LinkedIn-styled progress indicators during API operations
-  - Implement animated state transitions for improved user feedback
-
-- [ ] **Pairing Interfaces**:
-  - Design professional authentication screens with clear instructions
-  - Create a visually appealing account selection interface for page/showcase selection
-  - Add helpful illustrations explaining the connection process
-  - Implement progress indicators during the OAuth flow
-
-- [ ] **App Settings Interface**:
-  - Create a branded settings interface with LinkedIn styling
-  - Design intuitive controls for managing global app settings
-  - Add visual indicators for API rate limits and quota usage
-  - Implement a clean layout for managing connected accounts
-
-- [ ] **Flow Card UI Refinements**:
-  - Design custom card icons that reflect their functionality
-  - Create branded dropdown selectors and input fields
-  - Add preview capabilities for post content when configuring flows
-  - Implement visual feedback for card validation
-
-### 9. Image Handling for Posts
-
-- [ ] **Image Upload UI**:
-  - Create a user-friendly image selection interface
-  - Implement image preview functionality
-  - Add image cropping and basic editing capabilities
-  - Design progress indicators for image uploads
-
-- [ ] **Image Processing**:
-  - Implement automatic image optimization before upload
-  - Create thumbnail generation for previews
-  - Add support for multiple image formats
-  - Implement proper error handling for large or invalid images
-
-- [ ] **Media Management**:
-  - Design an interface for managing uploaded media
-  - Create a gallery view for previously used images
-  - Implement media reuse capabilities
-  - Add metadata display for media files
-
-- [ ] **Preview Rendering**:
-  - Create LinkedIn post previews showing how content will appear
-  - Implement card layout previews for different post types
-  - Design link preview renderers for URL posts
-  - Add support for previewing different visibility settings
