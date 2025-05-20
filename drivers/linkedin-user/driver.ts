@@ -63,37 +63,28 @@ class LinkedInUserDriver extends OAuth2Driver {
 
       // Fetch the user profile from LinkedIn
       const profileResponse = await oAuth2Client.getUserProfile();
+      (this as any).log('Profile response:', profileResponse);
 
-      if (!profileResponse.data || !profileResponse.data.id) {
+      // The userinfo endpoint returns data directly, not nested in a data property
+      const profile = profileResponse;
+
+      // For userinfo endpoint, the ID is in the 'sub' property
+      if (!profile || !profile.sub) {
         throw new Error('Profile response was empty or invalid');
       }
 
-      const profile = profileResponse.data;
-
-      // Get email address
-      let email = 'unknown@email.com';
-      try {
-        email = await oAuth2Client.getUserEmail();
-        // Use type assertion to access log method
-        (this as any).log('LinkedIn email fetched:', email);
-      } catch (emailError) {
-        // Use type assertion to access log method
-        (this as any).log('Could not fetch LinkedIn email, using fallback');
-      }
-
-      // Return the LinkedIn user as a device
-      return [{
-        name: `${profile.localizedFirstName || 'LinkedIn'} ${profile.localizedLastName || 'User'} ${email ? `(${email})` : ''}`,
-        data: {
-          id: profile.id,
+      // Create a device for this user
+      return [
+        {
+          name: profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim() || 'LinkedIn User',
+          data: {
+            id: profile.sub,
+          },
+          store: {
+            profileId: profile.sub,
+          },
         },
-        store: {
-          profileId: profile.id,
-          email,
-          firstName: profile.localizedFirstName || '',
-          lastName: profile.localizedLastName || '',
-        },
-      }];
+      ];
     } catch (err) {
       // Cast error to a type with message property
       const error = err as Error;
