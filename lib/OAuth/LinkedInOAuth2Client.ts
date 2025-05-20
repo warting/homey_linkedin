@@ -48,10 +48,6 @@ export default class LinkedInOAuth2Client extends OAuth2Client {
    * Get user profile information from LinkedIn
    */
   async getUserProfile() {
-    // Use type assertion for get method
-    // curl -X GET https://api.linkedin.com/v2/userinfo \
-    //   -H "Authorization: Bearer xxxxx"
-    // {"sub":"uLNf_tgfqn","email_verified":true,"name":"Stefan Wärting","locale":{"country":"US","language":"en"},"given_name":"Stefan","family_name":"Wärting","email":"stefan@warting.se","picture":"https://media.licdn.com/dms/image/v2/C4D03AQFeDoSsuc07Zg/profile-displayphoto-shrink_100_100/profile-displayphoto-shrink_100_100/0/1517563096227?e=1753315200&v=beta&t=iJo1Ms_ecTdNErh8eOs6gxgsVilFwVCFmQKcRYJwkDY"}%
     return (this as any).get({
       path: '/userinfo',
     });
