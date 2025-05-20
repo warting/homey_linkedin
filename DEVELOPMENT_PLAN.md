@@ -98,12 +98,14 @@ The app will use LinkedIn's REST APIs:
 - Sign In With LinkedIn for user authentication
 - Share API for posting content
 
-Required OAuth 2.0 scopes:
-- openid
-- profile
-- email
-- w_member_social
-
+## OAuth 2.0 scopes:
+Scopes define what your app can do on a user's behalf.
+The OAuth consent screen will display descriptions to end users as they are seen below. Some variation may occur if your app has a custom OAuth experience.
+- openid: Use your name and photo
+- profile: Use your name and photo
+- w_member_social: Create, modify, and delete posts, comments, and reactions on your behalf
+- email: Use the primary email address associated with your LinkedIn account
+- 
 ### Data Models
 
 1. **LinkedIn Post**:
